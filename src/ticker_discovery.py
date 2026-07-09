@@ -9,16 +9,21 @@ This keeps the pipeline from being limited to a hardcoded list while still
 letting a user pin specific tickers they care about.
 """
 import logging
-from typing import List, Set
+from typing import List, Optional, Set
 
+import config
 from src.data_sources import reddit, stocktwits
 
 logger = logging.getLogger(__name__)
 
 
 def discover_universe(
-    watchlist: List[str], include_trending: bool = True, max_candidates: int = 40
+    watchlist: List[str],
+    include_trending: bool = True,
+    max_candidates: Optional[int] = None,
 ) -> List[str]:
+    if max_candidates is None:
+        max_candidates = config.MAX_DISCOVERY_CANDIDATES
     universe: Set[str] = {t.strip().upper() for t in watchlist if t.strip()}
 
     if include_trending:

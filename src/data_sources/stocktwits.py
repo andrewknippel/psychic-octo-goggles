@@ -70,4 +70,9 @@ def fetch_trending_symbols() -> Set[str]:
         logger.warning("StockTwits trending fetch failed: %s", exc)
         return set()
 
-    return {s.get("symbol") for s in data.get("symbols", []) if s.get("symbol")}
+    symbols = {s.get("symbol") for s in data.get("symbols", []) if s.get("symbol")}
+    # StockTwits mixes crypto/forex into "trending" using a ".X" suffix
+    # (e.g. "XRP.X", "BTC.X") -- this tool is stocks-only and yfinance has
+    # no price data under those symbols, so drop them before they're ever
+    # queried.
+    return {s for s in symbols if not s.endswith(".X")}

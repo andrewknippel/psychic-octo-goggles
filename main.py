@@ -48,6 +48,12 @@ from src.ticker_discovery import discover_universe
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("main")
 
+# yfinance logs its own "possibly delisted"/"no data found" messages
+# directly (outside our warning system) for every ticker miss -- our code
+# already catches these and skips the ticker cleanly, so this is silenced
+# to avoid alarming, duplicate-looking output for an already-handled case.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+
 
 def gather_and_score(tickers, verbose=False):
     """Returns (scores, raw_data). raw_data holds each ticker's fetched

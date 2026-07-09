@@ -53,6 +53,13 @@ MIN_AVG_VOLUME = _int_env("MIN_AVG_VOLUME", 300_000)
 # scored at all -- avoids ranking obscure names off a single noisy post.
 MIN_MENTIONS = _int_env("MIN_MENTIONS", 3)
 
+# Cap on the auto-discovered candidate universe size (watchlist tickers are
+# always included on top of this). Each candidate costs ~3-4 network calls
+# (news, Reddit, StockTwits, price history), so this is the main lever on
+# how long a no-watchlist run takes and how much load it puts on the free
+# data sources.
+MAX_DISCOVERY_CANDIDATES = _int_env("MAX_DISCOVERY_CANDIDATES", 20)
+
 # Mention count at which the confidence multiplier saturates to 1.0.
 MENTION_CONFIDENCE_SATURATION = _int_env("MENTION_CONFIDENCE_SATURATION", 40)
 

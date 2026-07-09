@@ -1,4 +1,5 @@
-from src.data_sources.reddit import extract_cashtags
+import config
+from src.data_sources.reddit import _multi_subreddit_path, extract_cashtags
 from src.ticker_discovery import discover_universe
 
 
@@ -46,3 +47,24 @@ def test_discover_universe_skips_trending_when_disabled(monkeypatch):
     )
     universe = discover_universe(["AAPL"], include_trending=False)
     assert universe == ["AAPL"]
+
+
+def test_discover_universe_respects_configured_max_candidates(monkeypatch):
+    monkeypatch.setattr(
+        "src.ticker_discovery.stocktwits.fetch_trending_symbols",
+        lambda: {f"T{i}" for i in range(50)},
+    )
+    monkeypatch.setattr(
+        "src.ticker_discovery.reddit.scan_trending_cashtags", lambda: set()
+    )
+    universe = discover_universe([], include_trending=True)
+    assert len(universe) == config.MAX_DISCOVERY_CANDIDATES
+
+
+def test_multi_subreddit_path_joins_configured_subreddits():
+    path = _multi_subreddit_path()
+    subs = [s.strip() for s in config.REDDIT_SUBREDDITS if s.strip()]
+    assert path == "+".join(subs)
+    # One combined path -> one HTTP request instead of one per subreddit,
+    # which is what was triggering Reddit's bot-detection 403s.
+    assert path.count("+") == len(subs) - 1

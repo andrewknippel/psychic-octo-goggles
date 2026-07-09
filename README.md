@@ -63,6 +63,21 @@ StockTwits messages carry an author-supplied **Bullish/Bearish** tag, which
 is trusted over text-inferred sentiment when present -- it's a direct
 statement of intent rather than an inference from wording.
 
+Reddit's free JSON endpoints are sensitive to request volume/pattern --
+firing one request per subreddit per ticker in a tight loop reliably
+triggers `403 Blocked for url` responses, which looks like your network is
+blocking it but is actually Reddit's own bot detection. Every Reddit call
+uses a single combined multi-subreddit request (`r/sub1+sub2+.../...`)
+instead of one per subreddit, plus a small delay before each call, to stay
+well under that threshold. This cuts request volume roughly 4x but isn't a
+guarantee -- Reddit's policies can still change or block a given IP/pattern
+regardless.
+
+StockTwits' "trending" feed also mixes in crypto/forex symbols using a
+`.X` suffix (e.g. `XRP.X`, `BTC.X`) -- those are filtered out during
+discovery since this tool is stocks-only and `yfinance` has no price data
+under that symbol format.
+
 ### 3. Scoring (`src/analysis/`)
 
 For each ticker:
@@ -220,7 +235,12 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
 `RISK_EARNINGS_WINDOW_DAYS`, `DEFAULT_WATCH_INTERVAL_MINUTES`,
 `MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
-`DIP_MIN_SENTIMENT`, etc).
+`DIP_MIN_SENTIMENT`, `MAX_DISCOVERY_CANDIDATES`, etc).
+
+`MAX_DISCOVERY_CANDIDATES` (default 20) caps how many auto-discovered
+tickers get scored when you're not passing an explicit `--watchlist`. Each
+candidate costs several network calls, so this is the main lever on both
+runtime and how much load a run puts on the free data sources.
 
 ## Testing
 
@@ -240,7 +260,10 @@ end-to-end against the bundled sample dataset.
 
 - Free-tier data sources (Reddit public JSON, StockTwits public API, Yahoo
   RSS) are rate-limited and can change format without notice; treat network
-  failures as expected and check `-v` logs if a run looks thin.
+  failures as expected and check `-v` logs if a run looks thin. Reddit in
+  particular can still 403 an IP/pattern it doesn't like even with the
+  batched-request mitigation above -- there's no way to fully guarantee
+  access to a free, unauthenticated endpoint.
 - Sentiment analysis (VADER) is a lexicon-based heuristic, not a financial
   NLP model -- it can misread sarcasm, options jargon, and negation in
   longer posts. StockTwits' explicit Bullish/Bearish tags are weighted more
