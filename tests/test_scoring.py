@@ -35,6 +35,20 @@ def test_below_min_price_returns_none():
     assert result is None
 
 
+def test_penny_stock_threshold_is_five_dollars():
+    # $4 stock: not a fraction-of-a-dollar penny stock, but still below the
+    # $5 SEC/industry line this tool uses to exclude penny stocks entirely.
+    mentions = [_mention("CHEAP", tag="Bullish", hours_ago=i) for i in range(5)]
+    series = _series("CHEAP", [4.0, 4.05, 4.1, 4.15, 4.2], volumes=[500_000] * 5)
+    assert config.MIN_PRICE == 5.0
+    assert score_ticker("CHEAP", [], mentions, series, now=NOW) is None
+
+    # $5.50 stock, otherwise identical -- should NOT be excluded on price.
+    series_ok = _series("OK", [5.5, 5.55, 5.6, 5.65, 5.7], volumes=[500_000] * 5)
+    mentions_ok = [_mention("OK", tag="Bullish", hours_ago=i) for i in range(5)]
+    assert score_ticker("OK", [], mentions_ok, series_ok, now=NOW) is not None
+
+
 def test_below_min_volume_returns_none():
     mentions = [_mention("ILLIQ", tag="Bullish", hours_ago=i) for i in range(5)]
     series = _series("ILLIQ", list(range(20, 40)), volumes=[1000] * 20)  # far below MIN_AVG_VOLUME

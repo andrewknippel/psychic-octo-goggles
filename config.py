@@ -41,9 +41,11 @@ REDDIT_SUBREDDITS = os.environ.get(
     "REDDIT_SUBREDDITS", "wallstreetbets,stocks,StockMarket,investing"
 ).split(",")
 
-# Minimum share price to consider (filters out illiquid/penny tickers whose
-# short-term "growth" is mostly noise/manipulation risk).
-MIN_PRICE = _float_env("MIN_PRICE", 3.0)
+# Minimum share price to consider. $5 is the commonly-cited SEC/industry
+# line for "penny stock" -- below it, tickers are excluded entirely (not
+# just scored low) since that segment is mostly noise/manipulation risk
+# rather than genuine short-term growth.
+MIN_PRICE = _float_env("MIN_PRICE", 5.0)
 
 # Minimum 20-day average daily volume to consider a ticker liquid enough to
 # trade in/out of within a 2-7 day window.
@@ -100,9 +102,9 @@ DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 10)
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "output")
 
 # ---------------------------------------------------------------------------
-# --watch (live tracking) mode
+# Live tracking (on by default -- see main.py's --once to disable)
 # ---------------------------------------------------------------------------
-DEFAULT_WATCH_INTERVAL_MINUTES = _int_env("DEFAULT_WATCH_INTERVAL_MINUTES", 15)
+DEFAULT_WATCH_INTERVAL_MINUTES = _int_env("DEFAULT_WATCH_INTERVAL_MINUTES", 10)
 # Floor on refresh frequency -- Reddit/StockTwits/Yahoo's free, keyless
 # endpoints rate-limit or block clients that poll too aggressively.
 MIN_WATCH_INTERVAL_MINUTES = _int_env("MIN_WATCH_INTERVAL_MINUTES", 5)

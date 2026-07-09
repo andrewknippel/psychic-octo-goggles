@@ -5,25 +5,31 @@ Pulls news headlines, Reddit posts, and StockTwits messages for a universe
 of tickers, blends them with price/volume technicals, and ranks the
 tickers by a composite short-term-growth score.
 
+Live tracking is ON by default: a plain run rescans every 10 minutes
+until you press Ctrl+C. It's polling, not a real-time feed -- News/Reddit/
+StockTwits data doesn't change meaningfully faster than every several
+minutes anyway, and their free/keyless endpoints will start rate-limiting
+or blocking you if you hit them too often, hence the 5-minute floor on
+--interval.
+
 Usage:
     python main.py --watchlist AAPL,TSLA,NVDA --top 10
-    python main.py --offline                       # demo with synthetic data
-    python main.py --watchlist GME --no-trending    # only score named tickers
-    python main.py --watchlist AAPL,TSLA --watch --interval 15
-                                                     # re-scan every 15 min
-
---watch re-runs the same scan on a timer -- it's polling, not a real-time
-feed. News/Reddit/StockTwits data doesn't change meaningfully faster than
-every several minutes anyway, and their free/keyless endpoints will start
-rate-limiting or blocking you if you hit them too often, hence the 5-minute
-floor on --interval.
+                                                     # live, refreshes every 10 min
+    python main.py --watchlist AAPL,TSLA --interval 20
+                                                     # same, but every 20 min
+    python main.py --watchlist AAPL,TSLA --once     # single scan, then exit
+    python main.py --offline                        # demo with synthetic data
+    python main.py --watchlist GME --no-trending     # only score named tickers
 
 Every scan also prints a "DIP WATCH" section: tickers that dropped sharply
 but show early signs of stabilizing (oversold RSI and/or a decelerating
 decline) *and* whose sentiment hasn't turned bearish -- filtering out
-falling-knife, bad-news crashes. In --watch mode, a newly-appearing dip
+falling-knife, bad-news crashes. In live mode, a newly-appearing dip
 triggers a terminal bell + banner. This is a heuristic candidate list, not
 a bounce guarantee -- see README.md's "Known limitations" section.
+
+Penny stocks (price below MIN_PRICE, $5 by default) are excluded entirely,
+not just scored low -- see config.py.
 
 This is a research/screening tool, not investment advice. It surfaces
 attention + momentum, both of which can reverse violently within days --
@@ -199,8 +205,8 @@ def run_watch_loop(args, watchlist):
         )
 
     print(
-        f"Live tracking mode: rescanning every {interval_minutes} min. "
-        "Press Ctrl+C to stop.\n"
+        f"Live tracking (default mode): rescanning every {interval_minutes} min. "
+        "Press Ctrl+C to stop, or rerun with --once for a single scan.\n"
         "Dip alerts (terminal bell + banner) fire only when a ticker newly "
         "enters dip-watch status, not on every refresh it's still sitting there.\n"
     )
@@ -236,19 +242,19 @@ def main():
         help="Only score --watchlist tickers; skip StockTwits/Reddit trending discovery",
     )
     parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show")
-    parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten each refresh in --watch mode)")
+    parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten on each refresh)")
     parser.add_argument(
         "--offline", action="store_true",
         help="Use bundled synthetic sample data instead of live APIs (demo/test mode)",
     )
     parser.add_argument(
-        "--watch", action="store_true",
-        help="Keep re-scanning on a timer instead of exiting after one run (Ctrl+C to stop)",
+        "--once", action="store_true",
+        help="Run a single scan and exit, instead of the default live-tracking loop",
     )
     parser.add_argument(
         "--interval", type=int, default=config.DEFAULT_WATCH_INTERVAL_MINUTES,
-        help=f"Minutes between refreshes in --watch mode (default {config.DEFAULT_WATCH_INTERVAL_MINUTES}, "
-             f"minimum {config.MIN_WATCH_INTERVAL_MINUTES})",
+        help=f"Minutes between refreshes in live mode (default {config.DEFAULT_WATCH_INTERVAL_MINUTES}, "
+             f"minimum {config.MIN_WATCH_INTERVAL_MINUTES}; ignored with --once)",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -261,10 +267,10 @@ def main():
     if not args.offline and not watchlist and args.no_trending:
         parser.error("--no-trending requires --watchlist to have at least one ticker")
 
-    if args.watch:
-        run_watch_loop(args, watchlist)
-    else:
+    if args.once:
         run_scan(args, watchlist)
+    else:
+        run_watch_loop(args, watchlist)
 
     print(
         "\nDisclaimer: this is an automated screen of news/social attention and "

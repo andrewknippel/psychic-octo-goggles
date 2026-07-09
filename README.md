@@ -105,9 +105,10 @@ if their raw scores are similar, since a single hyperbolic post shouldn't be
 enough to rocket an obscure ticker to #1.
 
 Tickers are excluded entirely (not just scored low) if they fail minimum
-liquidity/data thresholds in `config.py`: price below `MIN_PRICE` ($3),
-20-day average volume below `MIN_AVG_VOLUME` (300k shares), or fewer than
-`MIN_MENTIONS` (3) combined news+social mentions.
+liquidity/data thresholds in `config.py`: price below `MIN_PRICE` ($5 --
+the standard "penny stock" line), 20-day average volume below
+`MIN_AVG_VOLUME` (300k shares), or fewer than `MIN_MENTIONS` (3) combined
+news+social mentions.
 
 ### 4. Risk flags (`scoring.py`)
 
@@ -142,13 +143,13 @@ API calls. A ticker qualifies when **all** of:
   news/social sentiment reads as a "falling knife" (real bad news, no
   reason to expect a bounce), not a dip-buy setup, and is excluded.
 
-Every scan prints a **DIP WATCH** section below the main table. In
-`--watch` mode, a ticker *newly* entering dip-watch status (not one still
-sitting there from last cycle) triggers a terminal bell + banner --
-that's what "notify" means here: an on-screen/audible alert while the
-terminal is open and the loop is running, not a push notification to your
-phone or email (that would need a separate service/credentials -- ask if
-you want that added).
+Every scan prints a **DIP WATCH** section below the main table. In the
+default live-tracking loop, a ticker *newly* entering dip-watch status
+(not one still sitting there from last cycle) triggers a terminal bell +
+banner -- that's what "notify" means here: an on-screen/audible alert
+while the terminal is open and the loop is running, not a push
+notification to your phone or email (that would need a separate
+service/credentials -- ask if you want that added).
 
 **This is a heuristic candidate list, not a bounce prediction.** A stock
 that's down sharply can keep falling regardless of what RSI or sentiment
@@ -164,32 +165,42 @@ cp .env.example .env   # optional: add a NEWSAPI_KEY for richer news coverage
 
 ## Usage
 
+**Live tracking is on by default** -- a plain run keeps rescanning every
+10 minutes and reprinting the table until you press Ctrl+C. Pass `--once`
+if you just want a single scan.
+
 ```bash
-# Score an explicit watchlist plus whatever's trending on StockTwits/Reddit
+# Live: score a watchlist + trending, refresh every 10 min, until Ctrl+C
 python main.py --watchlist AAPL,TSLA,NVDA,GME --top 10
 
-# Only score the named tickers, skip trending discovery
-python main.py --watchlist AAPL,MSFT --no-trending
+# Same, but every 20 min instead of the default 10 (5 min floor enforced)
+python main.py --watchlist AAPL,TSLA,NVDA --interval 20
 
-# Save full results (all scored tickers, not just the top N)
+# Single scan, then exit -- no loop
+python main.py --watchlist AAPL,TSLA,NVDA --once
+
+# Only score the named tickers, skip trending discovery
+python main.py --watchlist AAPL,MSFT --no-trending --once
+
+# Save full results on every refresh (all scored tickers, not just top N)
 python main.py --watchlist AAPL,TSLA --output output/results.json
 
 # Demo/test the pipeline with bundled synthetic data (no network required)
-python main.py --offline -v
-
-# Live tracking mode: keep rescanning every 15 min until you Ctrl+C
-python main.py --watchlist AAPL,TSLA,NVDA --watch
-
-# Same, but every 30 min instead of the default 15 (5 min floor enforced)
-python main.py --watchlist AAPL,TSLA,NVDA --watch --interval 30
+python main.py --offline --once -v
 ```
 
-`--watch` is polling, not a push feed -- it just reruns the same scan on a
+Live mode is polling, not a push feed -- it just reruns the same scan on a
 timer and reprints the table, so you don't have to keep retyping the
 command by hand. `--interval` has a 5-minute floor
 (`MIN_WATCH_INTERVAL_MINUTES` in `config.py`) because the free/keyless
 Reddit, StockTwits, and Yahoo endpoints this tool relies on will start
 rate-limiting or blocking a client that polls them too aggressively.
+
+Penny stocks are excluded entirely: `MIN_PRICE` defaults to **$5**, the
+commonly-cited SEC/industry line for what counts as a penny stock. A
+ticker below that price never appears in the ranked table or DIP WATCH,
+regardless of how it scores otherwise. Lower it via `MIN_PRICE` in
+`config.py`/`.env` if you actually want penny stocks included.
 
 Sample output (deterministic -- the synthetic dataset uses a fixed seed, so
 scores/RSI/volatility are stable run to run; only `earnings_date` and the
@@ -275,6 +286,7 @@ end-to-end against the bundled sample dataset.
 - DIP WATCH is the same kind of heuristic screen, aimed at the opposite
   setup (oversold/decelerating declines with non-bearish sentiment). It is
   not a bounce prediction -- sharp drops can, and do, keep falling.
-- `--watch`'s dip alert is a local terminal bell + on-screen banner, not a
-  push notification -- it only "reaches" you if that terminal is open and
-  visible/audible. There's no phone/email delivery built in.
+- The dip alert (fired by the default live-tracking loop) is a local
+  terminal bell + on-screen banner, not a push notification -- it only
+  "reaches" you if that terminal is open and visible/audible. There's no
+  phone/email delivery built in.
