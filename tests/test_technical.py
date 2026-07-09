@@ -58,3 +58,18 @@ def test_extreme_overbought_rsi_penalizes_technical_score():
 def test_price_series_too_short_for_rsi_returns_none():
     snap = TechnicalSnapshot(_series([10, 10.5, 11]))
     assert snap.rsi is None
+
+
+def test_choppy_series_has_higher_volatility_than_smooth_series():
+    smooth = [10, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 11.0]
+    choppy = [10, 11, 9.5, 11.2, 9.3, 11.5, 9.1, 11.8, 9.0, 12.0, 8.8]
+    smooth_snap = TechnicalSnapshot(_series(smooth))
+    choppy_snap = TechnicalSnapshot(_series(choppy))
+    assert smooth_snap.volatility_pct is not None
+    assert choppy_snap.volatility_pct is not None
+    assert choppy_snap.volatility_pct > smooth_snap.volatility_pct
+
+
+def test_volatility_none_when_too_few_points():
+    snap = TechnicalSnapshot(_series([10, 10.2]))
+    assert snap.volatility_pct is None

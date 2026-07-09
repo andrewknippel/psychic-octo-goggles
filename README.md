@@ -52,7 +52,7 @@ The candidate universe is the union of:
 | News | `news.py` | NewsAPI if `NEWSAPI_KEY` is set, else free Yahoo Finance RSS |
 | Reddit | `reddit.py` | None -- public read-only JSON endpoints |
 | StockTwits | `stocktwits.py` | None -- public REST API |
-| Price/volume | `market_data.py` | None -- `yfinance` |
+| Price/volume + earnings date | `market_data.py` | None -- `yfinance` |
 
 Every fetch is wrapped in a try/except that logs a warning and returns an
 empty result on failure, so one flaky source never crashes the run --
@@ -94,6 +94,23 @@ liquidity/data thresholds in `config.py`: price below `MIN_PRICE` ($3),
 20-day average volume below `MIN_AVG_VOLUME` (300k shares), or fewer than
 `MIN_MENTIONS` (3) combined news+social mentions.
 
+### 4. Risk flags (`scoring.py`)
+
+These are annotations, not scoring inputs -- they never change a ticker's
+rank, they just stop a high score from being mistaken for a low-risk one.
+Each `ScoreBreakdown` carries a `risk_flags` list (also folded into
+`rationale`) and a raw `volatility_pct`/`earnings_date`, flagged when:
+
+- **Overbought / oversold** -- RSI(7) at or past `RISK_RSI_OVERBOUGHT` (75)
+  or `RISK_RSI_OVERSOLD` (25).
+- **High volatility** -- daily-return stdev over the trailing ~10 days at or
+  above `RISK_VOLATILITY_PCT` (6%/day).
+- **Extended move** -- 3-day return at or above `RISK_EXTENDED_MOVE_PCT`
+  (15%), i.e. most of the expected move may already be behind it.
+- **Earnings in N days** -- next earnings date (via `yfinance`) falls inside
+  `RISK_EARNINGS_WINDOW_DAYS` (7) of today, meaning a binary, momentum-blind
+  event could land during the hold.
+
 ## Setup
 
 ```bash
@@ -117,22 +134,30 @@ python main.py --watchlist AAPL,TSLA --output output/results.json
 python main.py --offline -v
 ```
 
-Sample output:
+Sample output (deterministic -- the synthetic dataset uses a fixed seed, so
+scores/RSI/volatility are stable run to run; only `earnings_date` and the
+`as of` timestamp shift with the current date):
 
 ```
-Top short-term (2-7 day) growth candidates as of 2026-07-09 04:52 UTC
+Top short-term (2-7 day) growth candidates as of 2026-07-09 05:23 UTC
 
-#  Ticker    Score   Sent    Mom   Buzz   Tech  Conf    Price     3d%
----------------------------------------------------------------------
-1  TOPPY      54.5   80.5  100.0   80.5   47.2  0.67    14.20  +45.3%
-2  MOMO       53.5   87.9   93.2   74.9   42.1  0.67    25.21  +10.9%
-3  SLOW       24.9   70.0   55.3   47.1   47.2  0.43    49.15   +1.1%
-4  BAGGY      14.4   13.9   19.0   62.0    9.0  0.59    13.68   -6.4%
+#  Ticker    Score   Sent    Mom   Buzz   Tech  Conf    Price     3d%   Vol%  Risk
+------------------------------------------------------------------------------------
+1  TOPPY      54.5   80.5  100.0   80.5   47.8  0.67    14.20  +45.3%    6.3     4
+2  MOMO       53.5   87.9   92.7   74.9   42.2  0.67    24.95  +10.2%    1.5     1
+3  SLOW       24.7   70.0   53.9   47.1   45.8  0.43    49.18   +0.7%    0.3     1
+4  BAGGY      13.8   13.9   16.8   62.0    7.2  0.59    13.48   -6.8%    1.2     1
 
-1. TOPPY -- 100% bullish across 11 social mentions; +45.3% over 3 days; 3.4x normal trading volume; RSI 100.
+(Vol% = avg daily price swing over the last ~10 days; Risk = number of risk flags below, '-' = none)
+
+1. TOPPY -- 100% bullish across 11 social mentions; +45.3% over 3 days; 3.4x normal trading volume; RSI 100. Risk: Overbought (RSI 100); High volatility (~6.3%/day swings); Extended move (+45% in 3 days); Earnings in 2d (2026-07-11).
+2. MOMO -- 100% bullish across 11 social mentions; +10.2% over 3 days; 2.5x normal trading volume; RSI 98. Risk: Overbought (RSI 98).
 ...
 ```
-(`QUIET` is deliberately excluded from this run -- it fails `MIN_MENTIONS`.)
+(`QUIET` is deliberately excluded from this run -- it fails `MIN_MENTIONS`.) Note how
+`TOPPY` still ranks #1 on raw score despite carrying four risk flags -- the
+score measures attention + momentum, not safety, which is exactly why the
+flags exist as a separate signal.
 
 ## Tuning
 
@@ -140,7 +165,9 @@ Every weight and threshold lives in `config.py` and can be overridden via
 environment variables without touching code -- see the file for the full
 list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `WEIGHT_TECHNICAL`, `MIN_MENTIONS`, `MIN_PRICE`, `MIN_AVG_VOLUME`,
-`RECENCY_HALF_LIFE_HOURS`, `LOOKBACK_DAYS`, etc).
+`RECENCY_HALF_LIFE_HOURS`, `LOOKBACK_DAYS`, `RISK_RSI_OVERBOUGHT`,
+`RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
+`RISK_EARNINGS_WINDOW_DAYS`, etc).
 
 ## Testing
 

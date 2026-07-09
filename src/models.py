@@ -1,7 +1,7 @@
 """Shared data structures passed between pipeline stages."""
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass
@@ -47,4 +47,7 @@ class ScoreBreakdown:
     bullish_ratio: Optional[float]
     volume_surge: float
     rsi: Optional[float]
+    volatility_pct: Optional[float]
+    earnings_date: Optional[str]  # ISO date string, None if unknown/not upcoming
+    risk_flags: List[str]
     rationale: str

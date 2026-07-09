@@ -98,3 +98,54 @@ def test_low_mention_count_is_penalized_via_confidence(monkeypatch):
     )
     assert few.confidence < many.confidence
     assert few.final_score < many.final_score
+
+
+def test_overbought_series_produces_risk_flag():
+    mentions = [_mention("HOT", tag="Bullish", hours_ago=i) for i in range(5)]
+    # 8 straight up days, no down days -> RSI saturates at 100.
+    closes = [10, 11, 12.2, 13.5, 15, 16.7, 18.5, 20.6]
+    series = _series("HOT", closes)
+    result = score_ticker("HOT", [], mentions, series, now=NOW)
+    assert result is not None
+    assert any("Overbought" in f for f in result.risk_flags)
+
+
+def test_downtrend_series_produces_oversold_flag():
+    mentions = [_mention("COLD", tag="Bearish", hours_ago=i) for i in range(5)]
+    closes = [20.6, 18.5, 16.7, 15, 13.5, 12.2, 11, 10]
+    series = _series("COLD", closes)
+    result = score_ticker("COLD", [], mentions, series, now=NOW)
+    assert result is not None
+    assert any("Oversold" in f for f in result.risk_flags)
+
+
+def test_earnings_within_window_produces_risk_flag():
+    mentions = [_mention("EARN", tag="Bullish", hours_ago=i) for i in range(5)]
+    series = _series("EARN", [10, 10.2, 10.1, 10.3, 10.2, 10.4])
+    earnings_in_3_days = (NOW + timedelta(days=3)).date()
+    result = score_ticker(
+        "EARN", [], mentions, series, now=NOW, earnings_date=earnings_in_3_days
+    )
+    assert result is not None
+    assert any("Earnings" in f for f in result.risk_flags)
+    assert result.earnings_date == earnings_in_3_days.isoformat()
+
+
+def test_earnings_outside_window_produces_no_earnings_flag():
+    mentions = [_mention("FAR", tag="Bullish", hours_ago=i) for i in range(5)]
+    series = _series("FAR", [10, 10.2, 10.1, 10.3, 10.2, 10.4])
+    earnings_far_out = (NOW + timedelta(days=30)).date()
+    result = score_ticker(
+        "FAR", [], mentions, series, now=NOW, earnings_date=earnings_far_out
+    )
+    assert result is not None
+    assert not any("Earnings" in f for f in result.risk_flags)
+
+
+def test_no_earnings_date_means_no_earnings_flag():
+    mentions = [_mention("NOEARN", tag="Bullish", hours_ago=i) for i in range(5)]
+    series = _series("NOEARN", [10, 10.2, 10.1, 10.3, 10.2, 10.4])
+    result = score_ticker("NOEARN", [], mentions, series, now=NOW, earnings_date=None)
+    assert result is not None
+    assert result.earnings_date is None
+    assert not any("Earnings" in f for f in result.risk_flags)

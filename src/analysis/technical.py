@@ -5,6 +5,7 @@ more common RSI-14/50-day-MA setups used for swing/position trading -- those
 are too slow-moving to say anything useful about a one-week window.
 """
 import math
+import statistics
 from typing import Optional
 
 from src.models import PriceSeries
@@ -42,6 +43,26 @@ def _clamp(value: float, lo: float = 0.0, hi: float = 100.0) -> float:
     return max(lo, min(hi, value))
 
 
+def _daily_volatility_pct(closes: list, window: int = 10) -> Optional[float]:
+    """Population stdev of daily % returns over the trailing `window` days.
+
+    A rough, dependency-free proxy for how choppy a name has been recently
+    -- used to flag "this could swing hard either way" rather than to score
+    direction, which momentum/RSI already cover.
+    """
+    recent = closes[-(window + 1):]
+    if len(recent) < 3:
+        return None
+    returns = [
+        (recent[i] - recent[i - 1]) / recent[i - 1] * 100
+        for i in range(1, len(recent))
+        if recent[i - 1]
+    ]
+    if len(returns) < 2:
+        return None
+    return statistics.pstdev(returns)
+
+
 class TechnicalSnapshot:
     def __init__(self, series: PriceSeries):
         closes = series.close
@@ -61,6 +82,8 @@ class TechnicalSnapshot:
 
         self.sma5 = _sma(closes, 5)
         self.sma10 = _sma(closes, 10)
+
+        self.volatility_pct = _daily_volatility_pct(closes, window=10)
 
     @property
     def momentum_score(self) -> float:

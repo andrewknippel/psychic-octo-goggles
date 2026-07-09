@@ -42,8 +42,11 @@ def gather_and_score(tickers, verbose=False):
             ticker
         ) + stocktwits.fetch_stocktwits_mentions(ticker)
         price_series = market_data.fetch_price_series(ticker)
+        earnings_date = market_data.fetch_next_earnings_date(ticker)
 
-        result = score_ticker(ticker, news_mentions, social_mentions, price_series)
+        result = score_ticker(
+            ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
+        )
         if result is not None:
             scores.append(result)
         elif verbose:
@@ -57,8 +60,10 @@ def gather_and_score_offline(tickers, verbose=False):
     for ticker in tickers:
         if ticker not in dataset:
             continue
-        news_mentions, social_mentions, price_series = dataset[ticker]
-        result = score_ticker(ticker, news_mentions, social_mentions, price_series)
+        news_mentions, social_mentions, price_series, earnings_date = dataset[ticker]
+        result = score_ticker(
+            ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
+        )
         if result is not None:
             scores.append(result)
         elif verbose:
@@ -73,17 +78,20 @@ def print_table(scores):
 
     header = (
         f"{'#':<3}{'Ticker':<8}{'Score':>7}{'Sent':>7}{'Mom':>7}{'Buzz':>7}"
-        f"{'Tech':>7}{'Conf':>6}{'Price':>9}{'3d%':>8}"
+        f"{'Tech':>7}{'Conf':>6}{'Price':>9}{'3d%':>8}{'Vol%':>7}{'Risk':>6}"
     )
     print(header)
     print("-" * len(header))
     for i, s in enumerate(scores, 1):
+        vol_str = f"{s.volatility_pct:.1f}" if s.volatility_pct is not None else "n/a"
+        risk_str = f"{len(s.risk_flags)}" if s.risk_flags else "-"
         print(
             f"{i:<3}{s.ticker:<8}{s.final_score:>7.1f}{s.sentiment_score:>7.1f}"
             f"{s.momentum_score:>7.1f}{s.buzz_score:>7.1f}{s.technical_score:>7.1f}"
             f"{s.confidence:>6.2f}{s.last_price:>9.2f}{s.change_3d_pct:>+7.1f}%"
+            f"{vol_str:>7}{risk_str:>6}"
         )
-    print()
+    print("\n(Vol% = avg daily price swing over the last ~10 days; Risk = number of risk flags below, '-' = none)\n")
     for i, s in enumerate(scores, 1):
         print(f"{i}. {s.ticker} -- {s.rationale}")
 

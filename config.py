@@ -77,6 +77,16 @@ RECENCY_HALF_LIFE_HOURS = _float_env("RECENCY_HALF_LIFE_HOURS", 30.0)
 LOOKBACK_DAYS = _int_env("LOOKBACK_DAYS", 4)
 
 # ---------------------------------------------------------------------------
+# Risk flags -- these don't change the score, they annotate it so a high
+# ranking doesn't get mistaken for a low-risk one.
+# ---------------------------------------------------------------------------
+RISK_RSI_OVERBOUGHT = _float_env("RISK_RSI_OVERBOUGHT", 75.0)
+RISK_RSI_OVERSOLD = _float_env("RISK_RSI_OVERSOLD", 25.0)
+RISK_VOLATILITY_PCT = _float_env("RISK_VOLATILITY_PCT", 6.0)
+RISK_EXTENDED_MOVE_PCT = _float_env("RISK_EXTENDED_MOVE_PCT", 15.0)
+RISK_EARNINGS_WINDOW_DAYS = _int_env("RISK_EARNINGS_WINDOW_DAYS", 7)
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 10)

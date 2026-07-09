@@ -7,16 +7,18 @@ Five archetypes are included to exercise the scorer meaningfully:
   * SLOW  - mildly bullish, unremarkable technicals (mid-table)
   * BAGGY - bearish sentiment, falling price
   * QUIET - good technicals but too few mentions (should be filtered out)
-  * TOPPY - hot buzz but RSI extremely overbought after a vertical run
-            (exercises the risk-aware technical sub-score, which should
-            score its RSI health poorly even though momentum is maxed out)
+  * TOPPY - hot buzz but RSI extremely overbought after a vertical run,
+            plus earnings in 2 days (exercises the risk-aware technical
+            sub-score and both the overbought/earnings risk flags)
 """
 import random
+import zlib
 from datetime import datetime, timedelta, timezone
 
 from src.models import Mention, PriceSeries
 
 _NOW = datetime.now(timezone.utc)
+_TODAY = _NOW.date()
 
 
 def _mentions(ticker, source, texts_and_sentiments, hours_ago_start=2, engagement=25):
@@ -38,7 +40,11 @@ def _mentions(ticker, source, texts_and_sentiments, hours_ago_start=2, engagemen
 
 
 def _price_series(ticker, start_price, daily_pct_changes, volumes):
-    rng = random.Random(hash(ticker) % 1000)
+    # zlib.crc32 (not the builtin hash()) so the seed -- and therefore this
+    # synthetic dataset -- is identical across runs/processes. str hashing
+    # in Python 3 is randomized per-process by default, which was making
+    # RSI/risk-flag output drift from one run to the next.
+    rng = random.Random(zlib.crc32(ticker.encode()) % 1000)
     closes = [start_price]
     for pct in daily_pct_changes:
         closes.append(round(closes[-1] * (1 + pct / 100 + rng.uniform(-0.3, 0.3) / 100), 2))
@@ -53,11 +59,12 @@ _BASELINE_VOL = [900_000, 870_000, 910_000, 890_000, 900_000, 880_000, 895_000]
 
 
 def generate_offline_dataset():
-    """Returns dict: ticker -> (news_mentions, social_mentions, price_series)."""
+    """Returns dict: ticker -> (news_mentions, social_mentions, price_series, earnings_date)."""
     dataset = {}
 
     # MOMO: quiet baseline, then a genuine accelerating breakout with volume
-    # confirmation -- healthy setup, not yet extended.
+    # confirmation -- healthy setup, not yet extended. Earnings are far
+    # enough out that they shouldn't trip the earnings risk flag.
     dataset["MOMO"] = (
         _mentions(
             "MOMO",
@@ -78,6 +85,7 @@ def generate_offline_dataset():
             "MOMO", 22.0, _BASELINE_FLAT + [1.2, 2.1, 3.4, 2.8, 4.1],
             volumes=_BASELINE_VOL + [1_400_000, 1_900_000, 3_200_000, 4_600_000, 5_100_000, 5_300_000],
         ),
+        _TODAY + timedelta(days=12),
     )
 
     # SLOW: mild positive, unremarkable -- 12 quiet grinding-up days.
@@ -100,6 +108,7 @@ def generate_offline_dataset():
             volumes=[500_000, 480_000, 510_000, 495_000, 520_000, 505_000,
                      490_000, 500_000, 510_000, 495_000, 520_000, 505_000, 515_000],
         ),
+        None,
     )
 
     # BAGGY: quiet baseline, then a sustained bearish leg lower.
@@ -121,6 +130,7 @@ def generate_offline_dataset():
             "BAGGY", 15.0, _BASELINE_FLAT + [-2.1, -1.8, -3.0, -1.2, -2.5],
             volumes=_BASELINE_VOL + [800_000, 1_100_000, 1_300_000, 1_500_000, 1_600_000, 1_650_000],
         ),
+        None,
     )
 
     # QUIET: good technicals, but almost no mentions -> filtered by MIN_MENTIONS.
@@ -133,11 +143,13 @@ def generate_offline_dataset():
             volumes=[300_000, 310_000, 305_000, 320_000, 315_000, 330_000,
                      310_000, 315_000, 320_000, 318_000, 322_000, 325_000, 330_000],
         ),
+        None,
     )
 
     # TOPPY: quiet baseline, then a vertical, unsustainable spike -- heavy
     # buzz and maxed-out raw momentum, but RSI/technical health should flag
-    # it as extended rather than blindly rewarding the hype.
+    # it as extended rather than blindly rewarding the hype. Also has
+    # earnings in 2 days, exercising the earnings risk flag.
     dataset["TOPPY"] = (
         _mentions(
             "TOPPY",
@@ -154,6 +166,7 @@ def generate_offline_dataset():
             "TOPPY", 8.0, _BASELINE_FLAT + [9.0, 12.0, 15.0, 11.0, 14.0],
             volumes=_BASELINE_VOL + [2_500_000, 6_000_000, 9_000_000, 12_000_000, 15_000_000, 18_000_000],
         ),
+        _TODAY + timedelta(days=2),
     )
 
     return dataset

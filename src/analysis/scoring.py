@@ -13,7 +13,7 @@ hyperbolic Reddit post can't rocket an obscure ticker to the top of the
 list purely on noise.
 """
 import math
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
 import config
@@ -32,12 +32,39 @@ def _confidence(count: int) -> float:
     return min(1.0, math.log1p(count) / math.log1p(saturation))
 
 
+def _risk_flags(
+    tech: TechnicalSnapshot, earnings_date: Optional[date], now: datetime
+) -> List[str]:
+    """Annotations that don't affect the score but flag elevated risk of a
+    sharp reversal or event-driven move within the 2-7 day holding window."""
+    flags = []
+
+    if tech.rsi is not None and tech.rsi >= config.RISK_RSI_OVERBOUGHT:
+        flags.append(f"Overbought (RSI {tech.rsi:.0f})")
+    elif tech.rsi is not None and tech.rsi <= config.RISK_RSI_OVERSOLD:
+        flags.append(f"Oversold (RSI {tech.rsi:.0f})")
+
+    if tech.volatility_pct is not None and tech.volatility_pct >= config.RISK_VOLATILITY_PCT:
+        flags.append(f"High volatility (~{tech.volatility_pct:.1f}%/day swings)")
+
+    if tech.change_3d_pct is not None and tech.change_3d_pct >= config.RISK_EXTENDED_MOVE_PCT:
+        flags.append(f"Extended move (+{tech.change_3d_pct:.0f}% in 3 days)")
+
+    if earnings_date is not None:
+        days_out = (earnings_date - now.date()).days
+        if 0 <= days_out <= config.RISK_EARNINGS_WINDOW_DAYS:
+            flags.append(f"Earnings in {days_out}d ({earnings_date.isoformat()})")
+
+    return flags
+
+
 def _build_rationale(
     ticker: str,
     sentiment_score: float,
     tech: TechnicalSnapshot,
     ratio: Optional[float],
     mention_count: int,
+    risk_flags: List[str],
 ) -> str:
     parts = []
 
@@ -54,7 +81,10 @@ def _build_rationale(
     if tech.rsi is not None:
         parts.append(f"RSI {tech.rsi:.0f}")
 
-    return "; ".join(parts) + "."
+    rationale = "; ".join(parts) + "."
+    if risk_flags:
+        rationale += " Risk: " + "; ".join(risk_flags) + "."
+    return rationale
 
 
 def score_ticker(
@@ -63,6 +93,7 @@ def score_ticker(
     social_mentions: List[Mention],
     price_series: Optional[PriceSeries],
     now: Optional[datetime] = None,
+    earnings_date: Optional[date] = None,
 ) -> Optional[ScoreBreakdown]:
     """Returns a ScoreBreakdown, or None if the ticker fails minimum data /
     liquidity requirements and shouldn't be ranked."""
@@ -90,6 +121,7 @@ def score_ticker(
     )
 
     confidence = _confidence(mention_count)
+    risk_flags = _risk_flags(tech, earnings_date, now)
 
     composite = (
         config.WEIGHT_SENTIMENT * sentiment_score
@@ -114,7 +146,10 @@ def score_ticker(
         bullish_ratio=round(ratio, 2) if ratio is not None else None,
         volume_surge=round(tech.volume_surge, 2),
         rsi=round(tech.rsi, 1) if tech.rsi is not None else None,
-        rationale=_build_rationale(ticker, sentiment_score, tech, ratio, mention_count),
+        volatility_pct=round(tech.volatility_pct, 2) if tech.volatility_pct is not None else None,
+        earnings_date=earnings_date.isoformat() if earnings_date is not None else None,
+        risk_flags=risk_flags,
+        rationale=_build_rationale(ticker, sentiment_score, tech, ratio, mention_count, risk_flags),
     )
 
 

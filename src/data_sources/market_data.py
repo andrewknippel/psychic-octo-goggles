@@ -1,5 +1,6 @@
 """Price/volume history via yfinance (no API key required)."""
 import logging
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from src.models import PriceSeries
@@ -29,3 +30,28 @@ def fetch_price_series(ticker: str, period: str = "3mo") -> Optional[PriceSeries
         close=hist["Close"].tolist(),
         volume=hist["Volume"].tolist(),
     )
+
+
+def fetch_next_earnings_date(ticker: str) -> Optional[date]:
+    """Nearest upcoming earnings date, or None if unknown/already reported.
+
+    Used purely as an event-risk flag -- earnings inside a 2-7 day holding
+    window can move a stock far more than any sentiment/momentum signal.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        return None
+
+    try:
+        earnings = yf.Ticker(ticker).get_earnings_dates(limit=8)
+    except Exception as exc:
+        logger.warning("Earnings date fetch failed for %s: %s", ticker, exc)
+        return None
+
+    if earnings is None or earnings.empty:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    upcoming = sorted(ts.date() for ts in earnings.index if ts.date() >= today)
+    return upcoming[0] if upcoming else None

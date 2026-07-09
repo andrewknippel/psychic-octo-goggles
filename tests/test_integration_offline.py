@@ -8,8 +8,10 @@ from src.sample_data import generate_offline_dataset
 def _score_all():
     dataset = generate_offline_dataset()
     scores = []
-    for ticker, (news_mentions, social_mentions, price_series) in dataset.items():
-        result = score_ticker(ticker, news_mentions, social_mentions, price_series)
+    for ticker, (news_mentions, social_mentions, price_series, earnings_date) in dataset.items():
+        result = score_ticker(
+            ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
+        )
         if result is not None:
             scores.append(result)
     return scores
@@ -37,3 +39,17 @@ def test_bullish_tickers_outrank_bearish_and_slow():
 def test_every_score_has_a_rationale_string():
     for s in _score_all():
         assert isinstance(s.rationale, str) and len(s.rationale) > 0
+
+
+def test_toppy_carries_overbought_and_earnings_risk_flags():
+    scores = {s.ticker: s for s in _score_all()}
+    toppy = scores["TOPPY"]
+    assert any("Overbought" in f for f in toppy.risk_flags)
+    assert any("Earnings" in f for f in toppy.risk_flags)
+    assert toppy.volatility_pct is not None and toppy.volatility_pct > 0
+
+
+def test_slow_ticker_has_no_earnings_flag_and_fewer_risk_flags_than_toppy():
+    scores = {s.ticker: s for s in _score_all()}
+    assert scores["SLOW"].earnings_date is None
+    assert len(scores["SLOW"].risk_flags) < len(scores["TOPPY"].risk_flags)
