@@ -36,9 +36,12 @@ REDDIT_USER_AGENT = os.environ.get(
 # ---------------------------------------------------------------------------
 # Universe / discovery
 # ---------------------------------------------------------------------------
-# Subreddits scanned for cashtag mentions and post sentiment.
+# Subreddits scanned for cashtag mentions and post sentiment. All configured
+# subreddits are combined into a single request (see reddit.py), so adding
+# more here widens ticker discovery without costing extra API calls.
 REDDIT_SUBREDDITS = os.environ.get(
-    "REDDIT_SUBREDDITS", "wallstreetbets,stocks,StockMarket,investing"
+    "REDDIT_SUBREDDITS",
+    "wallstreetbets,stocks,StockMarket,investing,options,Daytrading",
 ).split(",")
 
 # Minimum share price to consider. $5 is the commonly-cited SEC/industry
@@ -56,11 +59,13 @@ MIN_AVG_VOLUME = _int_env("MIN_AVG_VOLUME", 300_000)
 MIN_MENTIONS = _int_env("MIN_MENTIONS", 3)
 
 # Cap on the auto-discovered candidate universe size (watchlist tickers are
-# always included on top of this). Each candidate costs ~3-4 network calls
-# (news, Reddit, StockTwits, price history), so this is the main lever on
-# how long a no-watchlist run takes and how much load it puts on the free
-# data sources.
-MAX_DISCOVERY_CANDIDATES = _int_env("MAX_DISCOVERY_CANDIDATES", 20)
+# always included on top of this). Each candidate costs ~5 sequential
+# network calls (news, Reddit, StockTwits, price history, earnings date),
+# so this is the main lever on how long a run takes and how much load it
+# puts on the free data sources -- override with --max-candidates or this
+# env var. A bigger pool means a longer scan; if it starts taking longer
+# than --interval, raise --interval too.
+MAX_DISCOVERY_CANDIDATES = _int_env("MAX_DISCOVERY_CANDIDATES", 50)
 
 # Mention count at which the confidence multiplier saturates to 1.0.
 MENTION_CONFIDENCE_SATURATION = _int_env("MENTION_CONFIDENCE_SATURATION", 40)

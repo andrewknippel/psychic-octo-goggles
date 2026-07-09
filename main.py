@@ -18,8 +18,15 @@ Usage:
     python main.py --watchlist AAPL,TSLA --interval 20
                                                      # same, but every 20 min
     python main.py --watchlist AAPL,TSLA --once     # single scan, then exit
+    python main.py --max-candidates 100 --interval 20
+                                                     # scan a much bigger pool
     python main.py --offline                        # demo with synthetic data
     python main.py --watchlist GME --no-trending     # only score named tickers
+
+With no --watchlist, the candidate pool is auto-discovered from StockTwits
+trending + Reddit cashtag mentions, capped at --max-candidates (default
+50). Raising it considers more tickers per scan but takes longer -- if a
+scan starts taking longer than --interval, raise --interval to match.
 
 Every scan also prints a "DIP WATCH" section: tickers that dropped sharply
 but show early signs of stabilizing (oversold RSI and/or a decelerating
@@ -173,7 +180,10 @@ def run_scan(args, watchlist):
         print(f"[offline demo mode] scoring {len(universe)} synthetic tickers: {', '.join(universe)}\n")
         scores, raw_data = gather_and_score_offline(universe, verbose=args.verbose)
     else:
-        universe = discover_universe(watchlist, include_trending=not args.no_trending)
+        universe = discover_universe(
+            watchlist, include_trending=not args.no_trending,
+            max_candidates=args.max_candidates,
+        )
         if not universe:
             print("No candidate tickers found (empty watchlist and trending discovery returned nothing).")
             return set()
@@ -240,6 +250,12 @@ def main():
     parser.add_argument(
         "--no-trending", action="store_true",
         help="Only score --watchlist tickers; skip StockTwits/Reddit trending discovery",
+    )
+    parser.add_argument(
+        "--max-candidates", type=int, default=config.MAX_DISCOVERY_CANDIDATES,
+        help=f"Max auto-discovered tickers to scan on top of --watchlist (default "
+             f"{config.MAX_DISCOVERY_CANDIDATES}). Higher = more tickers considered but "
+             f"a slower scan -- raise --interval to match if a cycle runs long.",
     )
     parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show")
     parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten on each refresh)")
