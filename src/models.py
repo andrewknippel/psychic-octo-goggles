@@ -30,6 +30,44 @@ class PriceSeries:
 
 
 @dataclass
+class CompanyInfo:
+    """Fundamentals/company snapshot for the single-ticker deep-dive report."""
+
+    ticker: str
+    name: str = ""
+    sector: str = ""
+    industry: str = ""
+    market_cap: Optional[float] = None
+    trailing_pe: Optional[float] = None
+    forward_pe: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    beta: Optional[float] = None
+    target_mean_price: Optional[float] = None
+    recommendation_key: str = ""
+    summary: str = ""
+
+
+@dataclass
+class Recommendation:
+    """Rule-based buy/hold/sell verdict for the single-ticker deep-dive report."""
+
+    ticker: str
+    action: str  # "BUY MORE" | "HOLD" | "TRIM" | "SELL"
+    overall_score: float
+    trend_score: float
+    sentiment_score: Optional[float]
+    reasons: List[str]
+    risk_flags: List[str]
+    stop_loss: Optional[float]
+    stop_loss_pct: Optional[float]
+    take_profit: Optional[float]
+    take_profit_pct: Optional[float]
+    take_profit_basis: str
+    hold_horizon: str
+    hold_horizon_reason: str
+
+
+@dataclass
 class ScoreBreakdown:
     """Final ranked output for one ticker."""
 

@@ -127,3 +127,32 @@ DIP_RSI_OVERSOLD = _float_env("DIP_RSI_OVERSOLD", 32.0)
 # with genuinely bearish sentiment reads as a falling knife (bad
 # company-specific news), not a bounce setup -- this filters those out.
 DIP_MIN_SENTIMENT = _float_env("DIP_MIN_SENTIMENT", 40.0)
+
+# ---------------------------------------------------------------------------
+# Single-ticker deep-dive report (analyze.py) -- longer-horizon (weeks to
+# months) buy/hold/sell heuristics, separate from the 2-7 day scanner above.
+# ---------------------------------------------------------------------------
+# How trend (price/technicals) vs. sentiment (news+social) combine into the
+# overall 0-100 score that drives the action verdict.
+DEEPDIVE_WEIGHT_TREND = _float_env("DEEPDIVE_WEIGHT_TREND", 0.6)
+DEEPDIVE_WEIGHT_SENTIMENT = _float_env("DEEPDIVE_WEIGHT_SENTIMENT", 0.4)
+
+# Overall-score cutoffs mapping to the four possible verdicts.
+DEEPDIVE_SCORE_BUY = _float_env("DEEPDIVE_SCORE_BUY", 68.0)
+DEEPDIVE_SCORE_HOLD_LOW = _float_env("DEEPDIVE_SCORE_HOLD_LOW", 45.0)
+DEEPDIVE_SCORE_TRIM_LOW = _float_env("DEEPDIVE_SCORE_TRIM_LOW", 30.0)
+
+# RSI-14 extremes for the long-horizon report (looser than the 2-7 day
+# scanner's RSI-7 thresholds since this is a slower-moving signal).
+DEEPDIVE_RSI_OVERBOUGHT = _float_env("DEEPDIVE_RSI_OVERBOUGHT", 70.0)
+DEEPDIVE_RSI_EXTREME_OVERBOUGHT = _float_env("DEEPDIVE_RSI_EXTREME_OVERBOUGHT", 80.0)
+DEEPDIVE_RSI_OVERSOLD = _float_env("DEEPDIVE_RSI_OVERSOLD", 30.0)
+
+# Default stop-loss / take-profit fallbacks when no better level (recent
+# swing low, moving average, analyst target, 52-week high) is available.
+DEEPDIVE_DEFAULT_STOP_PCT = _float_env("DEEPDIVE_DEFAULT_STOP_PCT", 8.0)
+DEEPDIVE_DEFAULT_TARGET_PCT = _float_env("DEEPDIVE_DEFAULT_TARGET_PCT", 15.0)
+
+# How many days of price history to pull for the deep-dive (needs a full
+# year to compute SMA200 / 52-week range; falls back gracefully with less).
+DEEPDIVE_PRICE_PERIOD = os.environ.get("DEEPDIVE_PRICE_PERIOD", "1y")

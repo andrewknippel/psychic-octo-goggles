@@ -20,7 +20,7 @@ import random
 import zlib
 from datetime import datetime, timedelta, timezone
 
-from src.models import Mention, PriceSeries
+from src.models import CompanyInfo, Mention, PriceSeries
 
 _NOW = datetime.now(timezone.utc)
 _TODAY = _NOW.date()
@@ -203,3 +203,74 @@ def generate_offline_dataset():
     )
 
     return dataset
+
+
+def generate_offline_ticker_report(ticker: str):
+    """Synthetic ~1-year daily series + fundamentals + mentions for
+    analyze.py's --offline demo mode. Deterministic per ticker (same
+    zlib.crc32 seeding trick as _price_series) and picks a regime -- uptrend,
+    downtrend, or choppy -- from the seed so different demo tickers actually
+    look different rather than all reusing one canned shape.
+
+    Returns (news_mentions, social_mentions, price_series, company_info,
+    earnings_date).
+    """
+    seed = zlib.crc32(ticker.encode()) % 1000
+    rng = random.Random(seed)
+    regime = ["uptrend", "downtrend", "choppy"][seed % 3]
+
+    days = 280
+    start_price = round(rng.uniform(20, 300), 2)
+    drift = {"uptrend": 0.12, "downtrend": -0.12, "choppy": 0.0}[regime]
+    closes = [start_price]
+    volumes = []
+    base_volume = rng.randint(400_000, 5_000_000)
+    for _ in range(days):
+        pct = drift + rng.uniform(-1.4, 1.4)
+        closes.append(round(max(closes[-1] * (1 + pct / 100), 0.5), 2))
+        volumes.append(int(base_volume * rng.uniform(0.6, 1.6)))
+    volumes.append(int(base_volume * rng.uniform(0.6, 1.6)))
+
+    dates = [str((_NOW - timedelta(days=len(closes) - i)).date()) for i in range(len(closes))]
+    price_series = PriceSeries(ticker=ticker, dates=dates, close=closes, volume=volumes)
+
+    last_price = closes[-1]
+    target_delta = {"uptrend": 1.15, "downtrend": 0.9, "choppy": 1.05}[regime]
+
+    headline_by_regime = {
+        "uptrend": f"{ticker} extends rally as analysts raise price targets on strong demand.",
+        "downtrend": f"{ticker} slides further as analysts cut estimates on softening demand.",
+        "choppy": f"{ticker} trades sideways as investors await the next catalyst.",
+    }
+    tag_by_regime = {"uptrend": "Bullish", "downtrend": "Bearish", "choppy": None}
+
+    news_mentions = _mentions(
+        ticker, "news",
+        [(headline_by_regime[regime], None),
+         (f"{ticker} included in sector roundup coverage this week.", None)],
+    )
+    social_mentions = _mentions(
+        ticker, "stocktwits",
+        [(f"{ticker} thoughts #{i}", tag_by_regime[regime]) for i in range(5)],
+        engagement=15,
+    )
+
+    company_info = CompanyInfo(
+        ticker=ticker,
+        name=f"{ticker} Corp (offline demo)",
+        sector="Technology",
+        industry="Software",
+        market_cap=round(last_price * rng.randint(50_000_000, 2_000_000_000), 0),
+        trailing_pe=round(rng.uniform(10, 45), 1),
+        forward_pe=round(rng.uniform(8, 40), 1),
+        dividend_yield=round(rng.uniform(0, 0.03), 4) if rng.random() > 0.5 else None,
+        beta=round(rng.uniform(0.6, 1.8), 2),
+        target_mean_price=round(last_price * target_delta, 2),
+        recommendation_key={"uptrend": "buy", "downtrend": "hold", "choppy": "hold"}[regime],
+        summary=f"[Offline demo data] {ticker} is a synthetic company generated for demo/testing "
+                "purposes only -- not a real company.",
+    )
+
+    earnings_date = _TODAY + timedelta(days=rng.randint(3, 60))
+
+    return news_mentions, social_mentions, price_series, company_info, earnings_date

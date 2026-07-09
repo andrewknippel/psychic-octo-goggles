@@ -3,7 +3,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from src.models import PriceSeries
+from src.models import CompanyInfo, PriceSeries
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +55,39 @@ def fetch_next_earnings_date(ticker: str) -> Optional[date]:
     today = datetime.now(timezone.utc).date()
     upcoming = sorted(ts.date() for ts in earnings.index if ts.date() >= today)
     return upcoming[0] if upcoming else None
+
+
+def fetch_company_info(ticker: str) -> Optional[CompanyInfo]:
+    """Fundamentals/company snapshot for the deep-dive report. Best-effort --
+    yfinance's `.info` scrape is unofficial and fields are frequently
+    missing (ETFs, foreign listings, thinly-covered names), so every field
+    is read defensively and the caller must treat None as "unknown", not
+    "zero"."""
+    try:
+        import yfinance as yf
+    except ImportError:
+        return None
+
+    try:
+        info = yf.Ticker(ticker).info
+    except Exception as exc:
+        logger.warning("Company info fetch failed for %s: %s", ticker, exc)
+        return None
+
+    if not info or (info.get("regularMarketPrice") is None and info.get("currentPrice") is None):
+        return None
+
+    return CompanyInfo(
+        ticker=ticker,
+        name=info.get("longName") or info.get("shortName") or ticker,
+        sector=info.get("sector") or "",
+        industry=info.get("industry") or "",
+        market_cap=info.get("marketCap"),
+        trailing_pe=info.get("trailingPE"),
+        forward_pe=info.get("forwardPE"),
+        dividend_yield=info.get("dividendYield"),
+        beta=info.get("beta"),
+        target_mean_price=info.get("targetMeanPrice"),
+        recommendation_key=info.get("recommendationKey") or "",
+        summary=info.get("longBusinessSummary") or "",
+    )

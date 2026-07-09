@@ -1,12 +1,19 @@
 # Short-Term Stock Scanner
 
-Compiles news headlines, Reddit posts, and StockTwits messages for a set of
-tickers, blends that with price/volume momentum, and ranks the tickers by a
-composite score aimed at **2-7 day** growth potential.
+Two tools, sharing one data/scoring foundation:
 
-> **Not investment advice.** This is an automated attention + momentum
-> screen. High-buzz, high-momentum names carry elevated reversal risk.
-> Always do your own due diligence before trading anything it surfaces.
+* **`main.py`** -- compiles news headlines, Reddit posts, and StockTwits
+  messages for a set of tickers, blends that with price/volume momentum, and
+  ranks the tickers by a composite score aimed at **2-7 day** growth
+  potential.
+* **`analyze.py`** -- a single-ticker deep dive: buy more / hold / trim /
+  sell, a stop-loss and take-profit level, and how long to hold, with a full
+  rundown of the technicals, fundamentals, and news behind the call. See
+  [Single-ticker deep dive](#single-ticker-deep-dive-analyzepy) below.
+
+> **Not investment advice.** These are automated attention/momentum/technical
+> screens. High-buzz, high-momentum names carry elevated reversal risk.
+> Always do your own due diligence before trading anything they surface.
 
 ## How it works
 
@@ -276,6 +283,45 @@ flags exist as a separate signal. `DIPPY` and `BAGGY` both dropped
 comparably hard, but only `DIPPY` shows up in DIP WATCH -- `BAGGY`'s drop
 comes with bearish sentiment (falling knife), `DIPPY`'s doesn't.
 
+## Single-ticker deep dive (`analyze.py`)
+
+`main.py` ranks a *universe* of tickers for a 2-7 day trade. `analyze.py`
+answers a different question about *one* ticker you already own or are
+considering: buy more, hold, trim, or sell -- plus a stop-loss level, a
+take-profit/target level, and how long a position like this is typically
+worth holding. It reuses the same news/Reddit/StockTwits/price data sources
+as the scanner, but adds longer-horizon technicals (SMA20/50/200, RSI-14,
+MACD, 52-week range) and fundamentals (P/E, market cap, analyst price
+target) that a one-week scanner doesn't need.
+
+```bash
+# Full report: rundown, verdict, stop-loss/target, holding horizon
+python analyze.py AAPL
+
+# Save the full report (including the raw scores behind the verdict) to JSON
+python analyze.py TSLA --output tsla_report.json
+
+# Demo with synthetic data, no network required
+python analyze.py NVDA --offline
+```
+
+The verdict (`BUY MORE` / `HOLD` / `TRIM` / `SELL`) comes from a transparent
+rule engine in `src/analysis/deep_dive.py` -- it blends a trend score
+(moving-average alignment, RSI, MACD, 1/3/6-month momentum) with a news/social
+sentiment score, then applies a couple of overrides: it won't say "buy more"
+into an extremely overbought (RSI >= 80) blow-off top even if the score is
+high, and it forces "sell" on a death cross (50-day average below the
+200-day) paired with a sharp 3-month decline regardless of score. Every
+verdict prints its full "Why" list and any risk flags (overbought/oversold,
+near 52-week high/low, high volatility, upcoming earnings) so nothing is a
+black box. The suggested stop-loss uses the tightest support level below
+price (recent 20-day low, 50-day average, or 200-day average); the
+take-profit uses the analyst mean price target when available, falling back
+to the 52-week high or a flat default.
+
+Like the scanner, this is a heuristic screen, not investment advice --
+verify independently and size positions to your own risk tolerance.
+
 ## Tuning
 
 Every weight and threshold lives in `config.py` and can be overridden via
@@ -286,7 +332,10 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
 `RISK_EARNINGS_WINDOW_DAYS`, `DEFAULT_WATCH_INTERVAL_MINUTES`,
 `MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
-`DIP_MIN_SENTIMENT`, `MAX_DISCOVERY_CANDIDATES`, etc).
+`DIP_MIN_SENTIMENT`, `MAX_DISCOVERY_CANDIDATES`, etc). `analyze.py`'s
+deep-dive thresholds (`DEEPDIVE_WEIGHT_TREND`, `DEEPDIVE_SCORE_BUY`,
+`DEEPDIVE_RSI_OVERBOUGHT`, `DEEPDIVE_DEFAULT_STOP_PCT`, etc) live in the
+same file, in their own section.
 
 `MAX_DISCOVERY_CANDIDATES` (default 15, or pass `--max-candidates` directly)
 caps how many auto-discovered tickers get scored on top of `--watchlist`.
