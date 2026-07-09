@@ -99,3 +99,17 @@ DEFAULT_WATCH_INTERVAL_MINUTES = _int_env("DEFAULT_WATCH_INTERVAL_MINUTES", 15)
 # Floor on refresh frequency -- Reddit/StockTwits/Yahoo's free, keyless
 # endpoints rate-limit or block clients that poll too aggressively.
 MIN_WATCH_INTERVAL_MINUTES = _int_env("MIN_WATCH_INTERVAL_MINUTES", 5)
+
+# ---------------------------------------------------------------------------
+# Dip-reversal ("buy the dip") candidate detection
+# ---------------------------------------------------------------------------
+# Minimum 5-day decline (as a positive number, e.g. 8 means -8% or worse)
+# before a ticker is even considered a dip candidate.
+DIP_DROP_PCT = _float_env("DIP_DROP_PCT", 8.0)
+# RSI at/below this counts as "oversold" -- one of two possible reversal
+# signals (the other is the decline visibly decelerating).
+DIP_RSI_OVERSOLD = _float_env("DIP_RSI_OVERSOLD", 32.0)
+# Sentiment (0-100) must be at/above this to qualify. A sharp drop paired
+# with genuinely bearish sentiment reads as a falling knife (bad
+# company-specific news), not a bounce setup -- this filters those out.
+DIP_MIN_SENTIMENT = _float_env("DIP_MIN_SENTIMENT", 40.0)

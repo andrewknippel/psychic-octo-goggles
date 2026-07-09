@@ -18,6 +18,13 @@ every several minutes anyway, and their free/keyless endpoints will start
 rate-limiting or blocking you if you hit them too often, hence the 5-minute
 floor on --interval.
 
+Every scan also prints a "DIP WATCH" section: tickers that dropped sharply
+but show early signs of stabilizing (oversold RSI and/or a decelerating
+decline) *and* whose sentiment hasn't turned bearish -- filtering out
+falling-knife, bad-news crashes. In --watch mode, a newly-appearing dip
+triggers a terminal bell + banner. This is a heuristic candidate list, not
+a bounce guarantee -- see README.md's "Known limitations" section.
+
 This is a research/screening tool, not investment advice. It surfaces
 attention + momentum, both of which can reverse violently within days --
 always do your own due diligence before trading anything it lists.
@@ -32,6 +39,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 import config
+from src.analysis.dip_scanner import scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
 from src.data_sources import market_data, news, reddit, stocktwits
 from src.sample_data import generate_offline_dataset
@@ -42,7 +50,12 @@ logger = logging.getLogger("main")
 
 
 def gather_and_score(tickers, verbose=False):
+    """Returns (scores, raw_data). raw_data holds each ticker's fetched
+    (news_mentions, social_mentions, price_series) so callers -- e.g. the
+    dip scanner -- can reuse it without refetching and burning extra
+    requests against the free/keyless APIs."""
     scores = []
+    raw_data = []
     for ticker in tickers:
         if verbose:
             print(f"  scoring {ticker}...", file=sys.stderr)
@@ -52,6 +65,7 @@ def gather_and_score(tickers, verbose=False):
         ) + stocktwits.fetch_stocktwits_mentions(ticker)
         price_series = market_data.fetch_price_series(ticker)
         earnings_date = market_data.fetch_next_earnings_date(ticker)
+        raw_data.append((ticker, news_mentions, social_mentions, price_series))
 
         result = score_ticker(
             ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
@@ -60,16 +74,18 @@ def gather_and_score(tickers, verbose=False):
             scores.append(result)
         elif verbose:
             print(f"    skipped {ticker}: insufficient data/liquidity", file=sys.stderr)
-    return scores
+    return scores, raw_data
 
 
 def gather_and_score_offline(tickers, verbose=False):
     dataset = generate_offline_dataset()
     scores = []
+    raw_data = []
     for ticker in tickers:
         if ticker not in dataset:
             continue
         news_mentions, social_mentions, price_series, earnings_date = dataset[ticker]
+        raw_data.append((ticker, news_mentions, social_mentions, price_series))
         result = score_ticker(
             ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
         )
@@ -77,7 +93,7 @@ def gather_and_score_offline(tickers, verbose=False):
             scores.append(result)
         elif verbose:
             print(f"    skipped {ticker}: insufficient data/liquidity", file=sys.stderr)
-    return scores
+    return scores, raw_data
 
 
 def print_table(scores):
@@ -105,6 +121,19 @@ def print_table(scores):
         print(f"{i}. {s.ticker} -- {s.rationale}")
 
 
+def print_dip_section(candidates):
+    print("\n" + "-" * 88)
+    print("DIP WATCH -- sharp drops showing possible reversal signs (not a prediction, see README)")
+    print("-" * 88)
+    if not candidates:
+        print("None right now.")
+        return
+    for c in candidates:
+        rsi_str = f"{c.rsi:.0f}" if c.rsi is not None else "n/a"
+        print(f"  {c.ticker:<8} ${c.last_price:<10.2f} 3d {c.change_3d_pct:+.1f}%  5d {c.change_5d_pct:+.1f}%  RSI {rsi_str}")
+        print(f"           {c.summary}")
+
+
 def save_output(scores, path):
     rows = [asdict(s) for s in scores]
     if path.endswith(".json"):
@@ -121,18 +150,23 @@ def save_output(scores, path):
 
 
 def run_scan(args, watchlist):
-    """Runs one full discover -> fetch -> score -> print cycle."""
+    """Runs one full discover -> fetch -> score -> print cycle.
+
+    Returns the set of tickers currently flagged by the dip scanner, so
+    --watch mode can tell a newly-appearing dip apart from one it already
+    told you about last cycle.
+    """
     if args.offline:
         universe = watchlist or list(generate_offline_dataset().keys())
         print(f"[offline demo mode] scoring {len(universe)} synthetic tickers: {', '.join(universe)}\n")
-        scores = gather_and_score_offline(universe, verbose=args.verbose)
+        scores, raw_data = gather_and_score_offline(universe, verbose=args.verbose)
     else:
         universe = discover_universe(watchlist, include_trending=not args.no_trending)
         if not universe:
             print("No candidate tickers found (empty watchlist and trending discovery returned nothing).")
-            return
+            return set()
         print(f"Scoring {len(universe)} candidate tickers: {', '.join(universe)}\n")
-        scores = gather_and_score(universe, verbose=args.verbose)
+        scores, raw_data = gather_and_score(universe, verbose=args.verbose)
 
     all_ranked = rank_tickers(scores, top_n=len(scores))
     top = all_ranked[: args.top]
@@ -140,8 +174,13 @@ def run_scan(args, watchlist):
     print(f"\nTop short-term (2-7 day) growth candidates as of {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}\n")
     print_table(top)
 
+    dip_candidates = scan_for_dips(raw_data)
+    print_dip_section(dip_candidates)
+
     if args.output:
         save_output(all_ranked, args.output)
+
+    return {c.ticker for c in dip_candidates}
 
 
 def run_watch_loop(args, watchlist):
@@ -156,14 +195,24 @@ def run_watch_loop(args, watchlist):
     print(
         f"Live tracking mode: rescanning every {interval_minutes} min. "
         "Press Ctrl+C to stop.\n"
+        "Dip alerts (terminal bell + banner) fire only when a ticker newly "
+        "enters dip-watch status, not on every refresh it's still sitting there.\n"
     )
     cycle = 1
+    previously_seen_dips = set()
     try:
         while True:
             stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             banner = f" Refresh #{cycle} -- {stamp} "
             print(f"\n{banner.center(88, '=')}\n")
-            run_scan(args, watchlist)
+            dip_tickers = run_scan(args, watchlist) or set()
+
+            new_dips = dip_tickers - previously_seen_dips
+            if new_dips:
+                alert = f" NEW DIP ALERT: {', '.join(sorted(new_dips))} "
+                print("\a" + alert.center(88, "!"))
+            previously_seen_dips = dip_tickers
+
             cycle += 1
             print(f"\nNext refresh in {interval_minutes} min... (Ctrl+C to stop)")
             time.sleep(interval_minutes * 60)

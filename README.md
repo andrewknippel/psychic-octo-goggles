@@ -111,6 +111,35 @@ Each `ScoreBreakdown` carries a `risk_flags` list (also folded into
   `RISK_EARNINGS_WINDOW_DAYS` (7) of today, meaning a binary, momentum-blind
   event could land during the hold.
 
+### 5. Dip watch (`src/analysis/dip_scanner.py`)
+
+A second, independent scan that looks for the *opposite* setup: tickers
+that dropped sharply but show early signs of stabilizing. It reuses the
+same news/social/price data already fetched for the main scan -- no extra
+API calls. A ticker qualifies when **all** of:
+
+- **5-day decline** at or past `DIP_DROP_PCT` (8%).
+- **At least one reversal sign**: RSI(7) oversold (`DIP_RSI_OVERSOLD`, 32)
+  and/or the 3-day return is less negative than the 5-day return (the drop
+  is decelerating).
+- **Sentiment hasn't turned bearish** -- at/above `DIP_MIN_SENTIMENT` (40).
+  This is the key filter: a big drop *paired with* genuinely bearish
+  news/social sentiment reads as a "falling knife" (real bad news, no
+  reason to expect a bounce), not a dip-buy setup, and is excluded.
+
+Every scan prints a **DIP WATCH** section below the main table. In
+`--watch` mode, a ticker *newly* entering dip-watch status (not one still
+sitting there from last cycle) triggers a terminal bell + banner --
+that's what "notify" means here: an on-screen/audible alert while the
+terminal is open and the loop is running, not a push notification to your
+phone or email (that would need a separate service/credentials -- ask if
+you want that added).
+
+**This is a heuristic candidate list, not a bounce prediction.** A stock
+that's down sharply can keep falling regardless of what RSI or sentiment
+say. Treat it as "worth a closer look," the same as everything else this
+tool surfaces.
+
 ## Setup
 
 ```bash
@@ -152,25 +181,34 @@ scores/RSI/volatility are stable run to run; only `earnings_date` and the
 `as of` timestamp shift with the current date):
 
 ```
-Top short-term (2-7 day) growth candidates as of 2026-07-09 05:23 UTC
+Top short-term (2-7 day) growth candidates as of 2026-07-09 05:50 UTC
 
 #  Ticker    Score   Sent    Mom   Buzz   Tech  Conf    Price     3d%   Vol%  Risk
 ------------------------------------------------------------------------------------
 1  TOPPY      54.5   80.5  100.0   80.5   47.8  0.67    14.20  +45.3%    6.3     4
 2  MOMO       53.5   87.9   92.7   74.9   42.2  0.67    24.95  +10.2%    1.5     1
 3  SLOW       24.7   70.0   53.9   47.1   45.8  0.43    49.18   +0.7%    0.3     1
-4  BAGGY      13.8   13.9   16.8   62.0    7.2  0.59    13.48   -6.8%    1.2     1
+4  DIPPY      21.3   80.0   15.6   51.3    7.5  0.48    36.02   -7.1%    1.6     1
+5  BAGGY      13.8   13.9   16.8   62.0    7.2  0.59    13.48   -6.8%    1.2     1
 
 (Vol% = avg daily price swing over the last ~10 days; Risk = number of risk flags below, '-' = none)
 
 1. TOPPY -- 100% bullish across 11 social mentions; +45.3% over 3 days; 3.4x normal trading volume; RSI 100. Risk: Overbought (RSI 100); High volatility (~6.3%/day swings); Extended move (+45% in 3 days); Earnings in 2d (2026-07-11).
 2. MOMO -- 100% bullish across 11 social mentions; +10.2% over 3 days; 2.5x normal trading volume; RSI 98. Risk: Overbought (RSI 98).
 ...
+
+----------------------------------------------------------------------------------------
+DIP WATCH -- sharp drops showing possible reversal signs (not a prediction, see README)
+----------------------------------------------------------------------------------------
+  DIPPY    $36.02      3d -7.1%  5d -10.6%  RSI 3
+           DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100)
 ```
 (`QUIET` is deliberately excluded from this run -- it fails `MIN_MENTIONS`.) Note how
 `TOPPY` still ranks #1 on raw score despite carrying four risk flags -- the
 score measures attention + momentum, not safety, which is exactly why the
-flags exist as a separate signal.
+flags exist as a separate signal. `DIPPY` and `BAGGY` both dropped
+comparably hard, but only `DIPPY` shows up in DIP WATCH -- `BAGGY`'s drop
+comes with bearish sentiment (falling knife), `DIPPY`'s doesn't.
 
 ## Tuning
 
@@ -180,7 +218,9 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `WEIGHT_TECHNICAL`, `MIN_MENTIONS`, `MIN_PRICE`, `MIN_AVG_VOLUME`,
 `RECENCY_HALF_LIFE_HOURS`, `LOOKBACK_DAYS`, `RISK_RSI_OVERBOUGHT`,
 `RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
-`RISK_EARNINGS_WINDOW_DAYS`, etc).
+`RISK_EARNINGS_WINDOW_DAYS`, `DEFAULT_WATCH_INTERVAL_MINUTES`,
+`MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
+`DIP_MIN_SENTIMENT`, etc).
 
 ## Testing
 
@@ -190,7 +230,8 @@ pytest -q
 ```
 
 Tests cover sentiment weighting/blending, technical indicator math (RSI,
-momentum, volume surge), the composite scoring/filtering/ranking logic, and
+momentum, volume surge), the composite scoring/filtering/ranking logic,
+dip-candidate detection (including the falling-knife exclusion), and
 cashtag-based ticker discovery -- all against synthetic data, no network
 required. `tests/test_integration_offline.py` runs the full scoring pipeline
 end-to-end against the bundled sample dataset.
@@ -208,3 +249,9 @@ end-to-end against the bundled sample dataset.
   (and riskier) signal than fundamental value. It is not a replacement for
   research into the underlying business, and past momentum is not a
   guarantee of continued momentum.
+- DIP WATCH is the same kind of heuristic screen, aimed at the opposite
+  setup (oversold/decelerating declines with non-bearish sentiment). It is
+  not a bounce prediction -- sharp drops can, and do, keep falling.
+- `--watch`'s dip alert is a local terminal bell + on-screen banner, not a
+  push notification -- it only "reaches" you if that terminal is open and
+  visible/audible. There's no phone/email delivery built in.

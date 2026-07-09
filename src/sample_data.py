@@ -10,6 +10,11 @@ Five archetypes are included to exercise the scorer meaningfully:
   * TOPPY - hot buzz but RSI extremely overbought after a vertical run,
             plus earnings in 2 days (exercises the risk-aware technical
             sub-score and both the overbought/earnings risk flags)
+  * DIPPY - dropped sharply but sentiment is holding up ("buying the dip"
+            framing, not bad company-specific news) and the decline is
+            decelerating/oversold -- should surface in dip_scanner's
+            DIP WATCH, unlike BAGGY, whose drop is paired with bearish
+            sentiment and reads as a falling knife instead
 """
 import random
 import zlib
@@ -167,6 +172,34 @@ def generate_offline_dataset():
             volumes=_BASELINE_VOL + [2_500_000, 6_000_000, 9_000_000, 12_000_000, 15_000_000, 18_000_000],
         ),
         _TODAY + timedelta(days=2),
+    )
+
+    # DIPPY: quiet baseline, then a real drop -- but sentiment is framing it
+    # as a buying opportunity (broad pullback), not a company-specific
+    # problem, and the decline is decelerating with an oversold RSI. This is
+    # the "big dip, likely to bounce" case the dip scanner is meant to catch.
+    dataset["DIPPY"] = (
+        _mentions(
+            "DIPPY",
+            "news",
+            [("DIPPY shares fall with broader market pullback; no company-specific news.", None)],
+        ),
+        _mentions(
+            "DIPPY",
+            "stocktwits",
+            [
+                ("DIPPY oversold here, buying this dip", "Bullish"),
+                ("still like DIPPY long term, this is just market noise", "Bullish"),
+                ("DIPPY starting to find a floor", "Bullish"),
+                ("added more DIPPY on the drop", "Bullish"),
+            ],
+            engagement=20,
+        ),
+        _price_series(
+            "DIPPY", 40.0, _BASELINE_FLAT + [-3.5, -4.0, -2.5, -0.8],
+            volumes=_BASELINE_VOL[:7] + [700_000, 1_100_000, 1_600_000, 1_900_000, 1_200_000],
+        ),
+        None,
     )
 
     return dataset

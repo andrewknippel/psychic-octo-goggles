@@ -1,6 +1,7 @@
 """End-to-end pipeline test using the bundled synthetic dataset -- exercises
 discovery-free scoring against realistic-shaped data without any network
 calls, so it runs anywhere (including network-restricted CI/sandboxes)."""
+from src.analysis.dip_scanner import scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
 from src.sample_data import generate_offline_dataset
 
@@ -53,3 +54,15 @@ def test_slow_ticker_has_no_earnings_flag_and_fewer_risk_flags_than_toppy():
     scores = {s.ticker: s for s in _score_all()}
     assert scores["SLOW"].earnings_date is None
     assert len(scores["SLOW"].risk_flags) < len(scores["TOPPY"].risk_flags)
+
+
+def test_dip_watch_flags_dippy_but_not_the_bearish_falling_knife():
+    dataset = generate_offline_dataset()
+    raw_data = [
+        (ticker, news_mentions, social_mentions, price_series)
+        for ticker, (news_mentions, social_mentions, price_series, _earnings_date)
+        in dataset.items()
+    ]
+    dip_tickers = {c.ticker for c in scan_for_dips(raw_data)}
+    assert "DIPPY" in dip_tickers
+    assert "BAGGY" not in dip_tickers
