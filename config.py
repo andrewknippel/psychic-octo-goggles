@@ -63,9 +63,9 @@ MIN_MENTIONS = _int_env("MIN_MENTIONS", 3)
 # network calls (news, Reddit, StockTwits, price history, earnings date),
 # so this is the main lever on how long a run takes and how much load it
 # puts on the free data sources -- override with --max-candidates or this
-# env var. A bigger pool means a longer scan; if it starts taking longer
-# than --interval, raise --interval too.
-MAX_DISCOVERY_CANDIDATES = _int_env("MAX_DISCOVERY_CANDIDATES", 50)
+# env var. A bigger pool means a longer scan (and more exposure to the
+# free-tier rate limits described in the README) but more names considered.
+MAX_DISCOVERY_CANDIDATES = _int_env("MAX_DISCOVERY_CANDIDATES", 15)
 
 # Mention count at which the confidence multiplier saturates to 1.0.
 MENTION_CONFIDENCE_SATURATION = _int_env("MENTION_CONFIDENCE_SATURATION", 40)
@@ -103,7 +103,7 @@ RISK_EARNINGS_WINDOW_DAYS = _int_env("RISK_EARNINGS_WINDOW_DAYS", 7)
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
-DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 10)
+DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 5)
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "output")
 
 # ---------------------------------------------------------------------------

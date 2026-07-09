@@ -115,6 +115,14 @@ def gather_and_score_offline(tickers, verbose=False):
     return scores, raw_data
 
 
+def print_quick_summary(scores):
+    if not scores:
+        return
+    print("QUICK PICKS (ticker, score out of 100):")
+    picks = "   ".join(f"{i}. {s.ticker} ({s.final_score:.1f})" for i, s in enumerate(scores, 1))
+    print(picks + "\n")
+
+
 def print_table(scores):
     if not scores:
         print("No tickers met the minimum data/liquidity thresholds.")
@@ -194,6 +202,7 @@ def run_scan(args, watchlist):
     top = all_ranked[: args.top]
 
     print(f"\nTop short-term (2-7 day) growth candidates as of {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}\n")
+    print_quick_summary(top)
     print_table(top)
 
     dip_candidates = scan_for_dips(raw_data)

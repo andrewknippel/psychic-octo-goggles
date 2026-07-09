@@ -47,10 +47,11 @@ The candidate universe is the union of:
   filtered against a blocklist of trading jargon that looks like a ticker
   (`$OTM`, `$YOLO`, etc).
 
-The auto-discovered portion is capped at `--max-candidates` (default 50,
+The auto-discovered portion is capped at `--max-candidates` (default 15,
 `MAX_DISCOVERY_CANDIDATES` in `config.py`) on top of whatever's in
 `--watchlist`. Raising it considers more tickers per scan at the cost of a
-longer scan (~5 sequential network calls per ticker) -- if a scan starts
+longer scan (~5 sequential network calls per ticker) and more exposure to
+the free-tier rate limits described below -- if a scan starts
 taking longer than `--interval`, raise `--interval` to match.
 
 ### 2. Data collection (`src/data_sources/`)
@@ -198,8 +199,11 @@ cp .env.example .env   # optional: add a NEWSAPI_KEY for richer news coverage
 if you just want a single scan.
 
 ```bash
-# Live: score a watchlist + trending, refresh every 10 min, until Ctrl+C
-python main.py --watchlist AAPL,TSLA,NVDA,GME --top 10
+# Live: score ~15 auto-discovered tickers, show your top 5, every 10 min
+python main.py
+
+# Same idea, but always include these tickers in the scan too
+python main.py --watchlist AAPL,TSLA,NVDA,GME
 
 # Same, but every 20 min instead of the default 10 (5 min floor enforced)
 python main.py --watchlist AAPL,TSLA,NVDA --interval 20
@@ -210,9 +214,10 @@ python main.py --watchlist AAPL,TSLA,NVDA --once
 # Only score the named tickers, skip trending discovery
 python main.py --watchlist AAPL,MSFT --no-trending --once
 
-# Cast a much wider net -- scan up to 100 auto-discovered tickers instead
-# of the default 50 (bump --interval too, since a bigger pool scans slower)
-python main.py --max-candidates 100 --interval 20 --top 20
+# Cast a much wider net -- scan up to 60 auto-discovered tickers and show
+# your top 15, instead of the ~15-scanned/top-5 default (bump --interval
+# too, since a bigger pool scans slower)
+python main.py --max-candidates 60 --interval 20 --top 15
 
 # Save full results on every refresh (all scored tickers, not just top N)
 python main.py --watchlist AAPL,TSLA --output output/results.json
@@ -240,6 +245,9 @@ scores/RSI/volatility are stable run to run; only `earnings_date` and the
 
 ```
 Top short-term (2-7 day) growth candidates as of 2026-07-09 05:50 UTC
+
+QUICK PICKS (ticker, score out of 100):
+1. TOPPY (54.5)   2. MOMO (53.5)   3. SLOW (24.7)   4. DIPPY (21.3)   5. BAGGY (13.8)
 
 #  Ticker    Score   Sent    Mom   Buzz   Tech  Conf    Price     3d%   Vol%  Risk
 ------------------------------------------------------------------------------------
@@ -280,7 +288,7 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
 `DIP_MIN_SENTIMENT`, `MAX_DISCOVERY_CANDIDATES`, etc).
 
-`MAX_DISCOVERY_CANDIDATES` (default 50, or pass `--max-candidates` directly)
+`MAX_DISCOVERY_CANDIDATES` (default 15, or pass `--max-candidates` directly)
 caps how many auto-discovered tickers get scored on top of `--watchlist`.
 Each candidate costs ~5 sequential network calls, so this is the main lever
 on both runtime and how much load a run puts on the free data sources --
