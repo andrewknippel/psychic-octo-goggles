@@ -132,7 +132,20 @@ python main.py --watchlist AAPL,TSLA --output output/results.json
 
 # Demo/test the pipeline with bundled synthetic data (no network required)
 python main.py --offline -v
+
+# Live tracking mode: keep rescanning every 15 min until you Ctrl+C
+python main.py --watchlist AAPL,TSLA,NVDA --watch
+
+# Same, but every 30 min instead of the default 15 (5 min floor enforced)
+python main.py --watchlist AAPL,TSLA,NVDA --watch --interval 30
 ```
+
+`--watch` is polling, not a push feed -- it just reruns the same scan on a
+timer and reprints the table, so you don't have to keep retyping the
+command by hand. `--interval` has a 5-minute floor
+(`MIN_WATCH_INTERVAL_MINUTES` in `config.py`) because the free/keyless
+Reddit, StockTwits, and Yahoo endpoints this tool relies on will start
+rate-limiting or blocking a client that polls them too aggressively.
 
 Sample output (deterministic -- the synthetic dataset uses a fixed seed, so
 scores/RSI/volatility are stable run to run; only `earnings_date` and the

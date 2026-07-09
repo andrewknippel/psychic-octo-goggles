@@ -9,6 +9,14 @@ Usage:
     python main.py --watchlist AAPL,TSLA,NVDA --top 10
     python main.py --offline                       # demo with synthetic data
     python main.py --watchlist GME --no-trending    # only score named tickers
+    python main.py --watchlist AAPL,TSLA --watch --interval 15
+                                                     # re-scan every 15 min
+
+--watch re-runs the same scan on a timer -- it's polling, not a real-time
+feed. News/Reddit/StockTwits data doesn't change meaningfully faster than
+every several minutes anyway, and their free/keyless endpoints will start
+rate-limiting or blocking you if you hit them too often, hence the 5-minute
+floor on --interval.
 
 This is a research/screening tool, not investment advice. It surfaces
 attention + momentum, both of which can reverse violently within days --
@@ -19,6 +27,7 @@ import csv
 import json
 import logging
 import sys
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -111,36 +120,13 @@ def save_output(scores, path):
     print(f"\nSaved full results to {path}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--watchlist", default="", help="Comma-separated tickers to always include, e.g. AAPL,TSLA"
-    )
-    parser.add_argument(
-        "--no-trending", action="store_true",
-        help="Only score --watchlist tickers; skip StockTwits/Reddit trending discovery",
-    )
-    parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show")
-    parser.add_argument("--output", default="", help="Save full results to a .json or .csv file")
-    parser.add_argument(
-        "--offline", action="store_true",
-        help="Use bundled synthetic sample data instead of live APIs (demo/test mode)",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true")
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.INFO)
-
-    watchlist = [t for t in args.watchlist.split(",") if t.strip()]
-
+def run_scan(args, watchlist):
+    """Runs one full discover -> fetch -> score -> print cycle."""
     if args.offline:
         universe = watchlist or list(generate_offline_dataset().keys())
         print(f"[offline demo mode] scoring {len(universe)} synthetic tickers: {', '.join(universe)}\n")
         scores = gather_and_score_offline(universe, verbose=args.verbose)
     else:
-        if not watchlist and args.no_trending:
-            parser.error("--no-trending requires --watchlist to have at least one ticker")
         universe = discover_universe(watchlist, include_trending=not args.no_trending)
         if not universe:
             print("No candidate tickers found (empty watchlist and trending discovery returned nothing).")
@@ -156,6 +142,74 @@ def main():
 
     if args.output:
         save_output(all_ranked, args.output)
+
+
+def run_watch_loop(args, watchlist):
+    interval_minutes = max(args.interval, config.MIN_WATCH_INTERVAL_MINUTES)
+    if args.interval < config.MIN_WATCH_INTERVAL_MINUTES:
+        print(
+            f"Note: --interval raised to {interval_minutes} min (minimum) -- "
+            "the free news/Reddit/StockTwits endpoints this tool uses will start "
+            "rate-limiting or blocking you if hit too frequently.\n"
+        )
+
+    print(
+        f"Live tracking mode: rescanning every {interval_minutes} min. "
+        "Press Ctrl+C to stop.\n"
+    )
+    cycle = 1
+    try:
+        while True:
+            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            banner = f" Refresh #{cycle} -- {stamp} "
+            print(f"\n{banner.center(88, '=')}\n")
+            run_scan(args, watchlist)
+            cycle += 1
+            print(f"\nNext refresh in {interval_minutes} min... (Ctrl+C to stop)")
+            time.sleep(interval_minutes * 60)
+    except KeyboardInterrupt:
+        print("\nStopped live tracking.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--watchlist", default="", help="Comma-separated tickers to always include, e.g. AAPL,TSLA"
+    )
+    parser.add_argument(
+        "--no-trending", action="store_true",
+        help="Only score --watchlist tickers; skip StockTwits/Reddit trending discovery",
+    )
+    parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show")
+    parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten each refresh in --watch mode)")
+    parser.add_argument(
+        "--offline", action="store_true",
+        help="Use bundled synthetic sample data instead of live APIs (demo/test mode)",
+    )
+    parser.add_argument(
+        "--watch", action="store_true",
+        help="Keep re-scanning on a timer instead of exiting after one run (Ctrl+C to stop)",
+    )
+    parser.add_argument(
+        "--interval", type=int, default=config.DEFAULT_WATCH_INTERVAL_MINUTES,
+        help=f"Minutes between refreshes in --watch mode (default {config.DEFAULT_WATCH_INTERVAL_MINUTES}, "
+             f"minimum {config.MIN_WATCH_INTERVAL_MINUTES})",
+    )
+    parser.add_argument("-v", "--verbose", action="store_true")
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
+
+    watchlist = [t for t in args.watchlist.split(",") if t.strip()]
+
+    if not args.offline and not watchlist and args.no_trending:
+        parser.error("--no-trending requires --watchlist to have at least one ticker")
+
+    if args.watch:
+        run_watch_loop(args, watchlist)
+    else:
+        run_scan(args, watchlist)
 
     print(
         "\nDisclaimer: this is an automated screen of news/social attention and "

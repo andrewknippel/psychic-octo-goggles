@@ -91,3 +91,11 @@ RISK_EARNINGS_WINDOW_DAYS = _int_env("RISK_EARNINGS_WINDOW_DAYS", 7)
 # ---------------------------------------------------------------------------
 DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 10)
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "output")
+
+# ---------------------------------------------------------------------------
+# --watch (live tracking) mode
+# ---------------------------------------------------------------------------
+DEFAULT_WATCH_INTERVAL_MINUTES = _int_env("DEFAULT_WATCH_INTERVAL_MINUTES", 15)
+# Floor on refresh frequency -- Reddit/StockTwits/Yahoo's free, keyless
+# endpoints rate-limit or block clients that poll too aggressively.
+MIN_WATCH_INTERVAL_MINUTES = _int_env("MIN_WATCH_INTERVAL_MINUTES", 5)
