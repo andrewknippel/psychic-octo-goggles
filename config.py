@@ -115,6 +115,37 @@ DEFAULT_WATCH_INTERVAL_MINUTES = _int_env("DEFAULT_WATCH_INTERVAL_MINUTES", 10)
 MIN_WATCH_INTERVAL_MINUTES = _int_env("MIN_WATCH_INTERVAL_MINUTES", 5)
 
 # ---------------------------------------------------------------------------
+# Long-term (3-5 year) fundamentals screener (see long_term.py)
+# ---------------------------------------------------------------------------
+# Composite weights (should sum to 1.0). Growth/profitability/valuation
+# dominate since those drive multi-year compounding; analyst targets and
+# trailing price trend get smaller weights since they say less about a
+# 3-5 year outcome than the underlying business does.
+LT_WEIGHT_GROWTH = _float_env("LT_WEIGHT_GROWTH", 0.25)
+LT_WEIGHT_PROFITABILITY = _float_env("LT_WEIGHT_PROFITABILITY", 0.20)
+LT_WEIGHT_FINANCIAL_HEALTH = _float_env("LT_WEIGHT_FINANCIAL_HEALTH", 0.15)
+LT_WEIGHT_VALUATION = _float_env("LT_WEIGHT_VALUATION", 0.20)
+LT_WEIGHT_ANALYST = _float_env("LT_WEIGHT_ANALYST", 0.10)
+LT_WEIGHT_TREND = _float_env("LT_WEIGHT_TREND", 0.10)
+
+# Minimum market cap ($2B, the common small/mid-cap line) to be considered --
+# below this, single-company risk is high for a "best long-term picks" list.
+LT_MIN_MARKET_CAP = _float_env("LT_MIN_MARKET_CAP", 2_000_000_000)
+
+# Risk-flag thresholds -- annotations only, never affect score/ranking.
+LT_RISK_DEBT_TO_EQUITY = _float_env("LT_RISK_DEBT_TO_EQUITY", 150.0)
+LT_RISK_PEG = _float_env("LT_RISK_PEG", 3.0)
+LT_RISK_FORWARD_PE = _float_env("LT_RISK_FORWARD_PE", 45.0)
+LT_RISK_ANALYST_RATING = _float_env("LT_RISK_ANALYST_RATING", 3.5)
+LT_RISK_BETA = _float_env("LT_RISK_BETA", 1.8)
+
+LT_DEFAULT_TOP_N = _int_env("LT_DEFAULT_TOP_N", 10)
+# Cap on how many tickers from the curated default pool (long_term_universe.py)
+# get scanned on top of --watchlist. Each candidate costs a fundamentals
+# lookup + a multi-year price history pull.
+LT_DEFAULT_MAX_CANDIDATES = _int_env("LT_DEFAULT_MAX_CANDIDATES", 40)
+
+# ---------------------------------------------------------------------------
 # Dip-reversal ("buy the dip") candidate detection
 # ---------------------------------------------------------------------------
 # Minimum 5-day decline (as a positive number, e.g. 8 means -8% or worse)

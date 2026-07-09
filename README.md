@@ -1,12 +1,23 @@
-# Short-Term Stock Scanner
+# Stock Scanner
 
-Compiles news headlines, Reddit posts, and StockTwits messages for a set of
-tickers, blends that with price/volume momentum, and ranks the tickers by a
-composite score aimed at **2-7 day** growth potential.
+Two independent tools, since a short-term trade and a multi-year hold
+shouldn't be picked with the same signals:
 
-> **Not investment advice.** This is an automated attention + momentum
-> screen. High-buzz, high-momentum names carry elevated reversal risk.
-> Always do your own due diligence before trading anything it surfaces.
+- **`main.py`** -- short-term (2-7 day) scanner. Compiles news headlines,
+  Reddit posts, and StockTwits messages for a set of tickers, blends that
+  with price/volume momentum, and ranks the tickers by a composite
+  attention + momentum score. See below.
+- **`long_term.py`** -- long-term (3-5 year) screener. Ignores buzz
+  entirely and scores companies on growth, profitability, balance-sheet
+  health, valuation, and analyst coverage. See
+  [Long-term (3-5 year) stock picks](#long-term-3-5-year-stock-picks-long_termpy).
+
+> **Not investment advice.** Both tools are automated screens, not
+> recommendations. The short-term scanner surfaces high-buzz, high-momentum
+> names that carry elevated reversal risk; the long-term screener surfaces
+> statistically decent-looking businesses by the numbers, with no read on
+> moat, management, or events that haven't happened yet. Always do your own
+> due diligence before trading or investing in anything either one surfaces.
 
 ## How it works
 
@@ -308,6 +319,133 @@ dip-candidate detection (including the falling-knife exclusion), and
 cashtag-based ticker discovery -- all against synthetic data, no network
 required. `tests/test_integration_offline.py` runs the full scoring pipeline
 end-to-end against the bundled sample dataset.
+
+## Long-term (3-5 year) stock picks (`long_term.py`)
+
+A separate tool, not a mode of the scanner above -- a 2-7 day momentum/
+sentiment screen and a 3-5 year holding decision shouldn't be driven by the
+same signals. `long_term.py` ignores news/social buzz entirely and instead
+scores each company on its underlying business:
+
+- **Growth** (`_growth_score`) -- blends revenue and earnings growth.
+- **Profitability** (`_profitability_score`) -- blends profit margin,
+  operating margin, and return on equity.
+- **Financial health** (`_financial_health_score`) -- rewards low
+  debt/equity and positive free cash flow, since surviving multiple
+  rate/credit cycles over 3-5 years matters more than it does over a week.
+- **Valuation** (`_valuation_score`) -- PEG ratio (P/E adjusted for growth)
+  when available, otherwise a cruder forward-P/E-only fallback at reduced
+  confidence.
+- **Analyst coverage** (`_analyst_score`) -- blends the average analyst
+  recommendation with implied upside to the mean price target.
+- **Long-run trend** (`_trend_score`) -- multi-year CAGR blended with the
+  trailing 1-year return, as a (backward-looking, lightly-weighted) proxy
+  for sustained business quality.
+
+These combine into a weighted composite (`LT_WEIGHT_*` in `config.py`,
+default 25% growth / 20% profitability / 15% financial health / 20%
+valuation / 10% analyst / 10% trend), multiplied by a **confidence** factor
+based on data completeness -- yfinance doesn't report every field for every
+company, and a score built on 2 of 6 sub-scores shouldn't be trusted as
+much as one built on all 6. A missing sub-score falls back to a neutral 50
+rather than excluding the ticker outright.
+
+Tickers are excluded entirely below `MIN_PRICE` (same $5 penny-stock line
+as the short-term scanner) or below `LT_MIN_MARKET_CAP` ($2B by default --
+single-company risk is high for a "best long-term picks" list below that).
+
+Risk flags (annotations, not scoring inputs, same philosophy as the
+short-term scanner's) fire for: high debt load (D/E), rich valuation (PEG
+or forward P/E), revenue *and* earnings both shrinking, weak analyst
+sentiment, high beta, and thin data coverage.
+
+### Candidate universe
+
+There's no trending/hype discovery here on purpose -- what's getting
+attention *right now* (the short-term scanner's whole premise) is close to
+the opposite of what matters for a multi-year hold. Instead,
+`src/long_term_universe.py` ships a curated, static pool of ~50
+established, liquid, large/mid-cap companies spread across tech, health
+care, consumer, financials, and industrials/energy. It's a reasonable
+starting universe to screen, not a claim that these are already "the best
+picks" -- the scoring does that. Add your own names with `--watchlist`
+(always included in full; the pool fills the remaining `--max-candidates`
+slots).
+
+### Usage
+
+```bash
+# Scan the curated ~50-ticker pool (capped at --max-candidates, default 40), show top 10
+python long_term.py
+
+# Always include these, on top of the default pool
+python long_term.py --watchlist AAPL,COST,LLY
+
+# Only score the named tickers, skip the default pool entirely
+python long_term.py --watchlist NVDA,ASML --no-default-pool
+
+# Save full results
+python long_term.py --output output/long_term.json
+
+# Demo/test with bundled synthetic data (no network required)
+python long_term.py --offline -v
+```
+
+Unlike `main.py`, there's no live-tracking loop -- fundamentals move on a
+quarterly cadence, not minute to minute, so a single scan is the right
+default. Rerun it whenever you want a fresh read (e.g. after an earnings
+season). Each ticker costs a fundamentals lookup plus a 3-year price
+history pull, so a full default-pool scan takes a while; narrow it with
+`--watchlist --no-default-pool` or a lower `--max-candidates` for a
+quicker run.
+
+Sample output (offline demo, deterministic synthetic data):
+
+```
+Top long-term (3-5 year) picks as of 2026-07-09 20:56 UTC
+
+QUICK PICKS (ticker, score out of 100):
+1. COMPOUND (91.5)   2. VALUE (75.8)   3. STEADY (65.8)   4. HYPE (46.6)   5. TRAP (44.3)   6. THIN (25.3)
+
+#  Ticker    Score  Grow  Prof Health   Val Analy Trend  Conf     Price   MktCap  Risk
+--------------------------------------------------------------------------------------
+1  COMPOUND   91.5    94   100     93    88    78    85  1.00    210.00     650B     -
+2  VALUE      75.8    62    90     86    73    63    85  1.00    145.00     180B     -
+3  STEADY     65.8    58    75     78    70    56    49  1.00     60.00      25B     -
+4  HYPE       46.6    63    32     62     0    51   100  1.00     85.00      40B     2
+5  TRAP       44.3    22    57     24   100    33    24  0.96     22.00       6B     3
+6  THIN       25.3    50    50     50    50    50    56  0.50     40.00       4B     1
+
+1. COMPOUND -- +18% revenue / +22% earnings growth; 25% profit margin; PEG 1.4; analyst avg rating 1.8/5.
+...
+4. HYPE -- +42% revenue / -12% earnings growth; -6% profit margin; PEG 6.5; analyst avg rating 3.1/5. Risk: Richly valued (PEG 6.5); High volatility stock (beta 2.3).
+5. TRAP -- -8% revenue / -18% earnings growth; 2% profit margin; fwd P/E 9; analyst avg rating 3.8/5. Risk: High debt load (D/E 220%); Revenue and earnings both shrinking; Weak analyst sentiment (avg rating 3.8/5).
+```
+
+Note `HYPE` has the single highest raw growth number (+42% revenue) but
+ranks 4th -- it's unprofitable, richly valued (PEG 6.5), and already had a
+huge run, all of which the composite (correctly) treats as risk rather
+than reward. `TRAP` has the cheapest headline valuation (fwd P/E 9) but
+ranks near the bottom because that cheapness reflects a shrinking business
+with heavy debt, not an overlooked bargain -- the classic value-trap
+pattern.
+
+### Known limitations (long-term screener)
+
+- Built entirely on what `yfinance`'s free `.info` endpoint reports --
+  no independent verification of a company's numbers, no read on
+  competitive moat, management quality, or pending litigation/regulation.
+- Multi-year CAGR/trend is backward-looking. A stock that compounded 20%/yr
+  for the last 3 years has no guarantee of doing so for the next 3-5 --
+  it's weighted at only 10% of the composite for that reason.
+- The curated default pool (`src/long_term_universe.py`) is a fixed,
+  manually-maintained list, not an exhaustive or continuously-updated
+  universe -- a genuinely great long-term pick outside that list won't
+  surface unless you add it via `--watchlist`.
+- Same free-tier fragility as the short-term scanner: yfinance's endpoints
+  can be slow, rate-limited, or return partial data; a company with
+  several missing fields gets a reduced-confidence score rather than being
+  silently treated as equally reliable.
 
 ## Known limitations
 
