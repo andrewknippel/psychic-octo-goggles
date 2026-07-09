@@ -2,12 +2,18 @@
 
 Primary source is NewsAPI (https://newsapi.org) when NEWSAPI_KEY is set.
 Falls back to the free, keyless Yahoo Finance per-ticker RSS feed so the
-pipeline still gets a news signal with zero configuration.
+pipeline still gets a news signal with zero configuration -- but that feed
+is a per-ticker request with no batching option, so it starts returning
+`429 Too Many Requests` once a scan covers dozens of tickers back-to-back.
+A small delay before each request buys some headroom, though at a large
+enough --max-candidates it's still going to get rate-limited sometimes; a
+NEWSAPI_KEY avoids this path (and its rate limit) entirely.
 
 Every network call is wrapped so a single failing source degrades to an
 empty result instead of crashing the whole run.
 """
 import logging
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import List
@@ -20,6 +26,7 @@ from src.models import Mention
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 8
+_YAHOO_RSS_DELAY_SECONDS = 0.5
 
 
 def fetch_news_mentions(ticker: str, company_name: str = "") -> List[Mention]:
@@ -83,6 +90,7 @@ def _fetch_yahoo_rss(ticker: str) -> List[Mention]:
         "https://feeds.finance.yahoo.com/rss/2.0/headline"
         f"?s={ticker}&region=US&lang=en-US"
     )
+    time.sleep(_YAHOO_RSS_DELAY_SECONDS)
     try:
         resp = requests.get(url, timeout=_TIMEOUT)
         resp.raise_for_status()

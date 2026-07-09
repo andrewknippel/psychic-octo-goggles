@@ -77,14 +77,34 @@ triggers `403 Blocked for url` responses, which looks like your network is
 blocking it but is actually Reddit's own bot detection. Every Reddit call
 uses a single combined multi-subreddit request (`r/sub1+sub2+.../...`)
 instead of one per subreddit, plus a small delay before each call, to stay
-well under that threshold. This cuts request volume roughly 4x but isn't a
-guarantee -- Reddit's policies can still change or block a given IP/pattern
-regardless.
+well under that threshold. Yahoo's RSS feed gets the same small-delay
+treatment for the same reason (`429 Too Many Requests` past a few dozen
+tickers). Neither is a guarantee, though -- **the more tickers you scan
+per run (`--max-candidates`), the more you'll run into these free-tier
+limits**; there's no delay tuning that fully eliminates that trade-off.
+Two ways to push it back:
+- Get a free [NewsAPI](https://newsapi.org) key and set `NEWSAPI_KEY` --
+  this replaces the Yahoo RSS path (and its rate limit) entirely, though
+  NewsAPI's own free tier caps out at 100 requests/day, so it can run dry
+  partway through a day of frequent large scans too.
+- Turn `--max-candidates` back down, or raise `--interval` so the same
+  ticket volume is spread over more wall-clock time.
+
+None of this stops the tool from working -- a blocked/rate-limited source
+just contributes nothing for that ticker that cycle, and scoring proceeds
+on whatever data did come through (StockTwits and price/volume history
+tend to hold up best under volume, since StockTwits has generous limits
+and yfinance calls a different, less sensitive Yahoo endpoint).
 
 StockTwits' "trending" feed also mixes in crypto/forex symbols using a
 `.X` suffix (e.g. `XRP.X`, `BTC.X`) -- those are filtered out during
 discovery since this tool is stocks-only and `yfinance` has no price data
 under that symbol format.
+
+`yfinance`'s earnings-date lookup (`get_earnings_dates`) parses an HTML
+table and requires the `lxml` package -- it's in `requirements.txt`; if
+you installed dependencies before it was added, rerun
+`pip install -r requirements.txt` to pick it up.
 
 ### 3. Scoring (`src/analysis/`)
 
