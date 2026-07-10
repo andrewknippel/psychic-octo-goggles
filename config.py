@@ -133,3 +133,15 @@ DIP_MIN_SENTIMENT = _float_env("DIP_MIN_SENTIMENT", 40.0)
 # move the stock on its own terms regardless of the technical setup), so
 # it's flagged when the next earnings date falls within this many days.
 DIP_EARNINGS_WINDOW_DAYS = _int_env("DIP_EARNINGS_WINDOW_DAYS", 28)
+
+# ---------------------------------------------------------------------------
+# Same-day momentum movers -- NOT a same-day round-trip guarantee. This is
+# the closest honest signal daily-bar data can give for "unusually active
+# today": today's price move plus today's volume vs. its own average. It
+# says nothing about which direction the rest of the day goes.
+# ---------------------------------------------------------------------------
+# Minimum single-day gain (%) to count as a "mover" today.
+DAY_MOVER_MIN_CHANGE_PCT = _float_env("DAY_MOVER_MIN_CHANGE_PCT", 3.0)
+# Minimum volume surge (today's volume / 20-day average) to count as
+# unusually active rather than just drifting up on light volume.
+DAY_MOVER_MIN_VOLUME_SURGE = _float_env("DAY_MOVER_MIN_VOLUME_SURGE", 1.5)

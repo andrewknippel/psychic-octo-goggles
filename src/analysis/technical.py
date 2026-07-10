@@ -69,6 +69,7 @@ class TechnicalSnapshot:
         volumes = series.volume
 
         self.last_price = closes[-1] if closes else 0.0
+        self.change_1d_pct = _pct_change(closes, 1)
         self.change_3d_pct = _pct_change(closes, 3)
         self.change_5d_pct = _pct_change(closes, 5)
         self.rsi = _rsi(closes, period=7)

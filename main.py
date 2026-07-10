@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-"""Oversold dip/rebound scanner (default mode) + short-term momentum scanner
-(--show-momentum).
+"""Two-horizon stock scanner: oversold rebound candidates (~4 weeks) +
+same-day momentum movers, both shown by default. --show-momentum adds a
+third, original 2-7 day momentum-ranked table.
 
-By default this ONLY shows REBOUND CANDIDATES: tickers with a low RSI that
-just dropped sharply, but show early signs of stabilizing, and whose
-sentiment hasn't turned bearish (which would suggest a falling knife
-instead of a bounce setup). Framed around a "days to ~4 weeks" horizon --
-that's the timeframe this kind of oversold-bounce setup typically plays
-out over, NOT a guarantee it bounces, or that it bounces by any deadline.
-Nothing can promise that; see the "Known limitations" section of README.md.
+Default output has two sections:
+
+1. REBOUND CANDIDATES (~4 week horizon): tickers with a low RSI that just
+   dropped sharply, show early signs of stabilizing, and whose sentiment
+   hasn't turned bearish (which would suggest a falling knife instead of a
+   bounce setup). "~4 weeks" describes the timeframe this kind of setup is
+   typically evaluated over -- NOT a guarantee it bounces, or that it does
+   by any deadline. Nothing can promise that.
+
+2. SAME-DAY MOMENTUM MOVERS: tickers up sharply today on unusually high
+   volume. This is NOT a same-day round-trip prediction -- genuine
+   intraday trading signals need real-time, minute-by-minute data this
+   tool doesn't have. It only flags unusual price+volume activity as of
+   the latest daily bar, not which direction the rest of the day goes.
+   Buying and selling the same day is high-risk speculation regardless.
+
+See the "Known limitations" section of README.md for more on both.
 
 Live tracking is ON by default: a plain run rescans every 10 minutes
 until you press Ctrl+C. It's polling, not a real-time feed -- News/Reddit/
@@ -24,7 +35,7 @@ Usage:
                                                      # same, but every 20 min
     python main.py --watchlist AAPL,TSLA --once     # single scan, then exit
     python main.py --show-momentum --top 10         # also show the original
-                                                     # momentum-ranked table
+                                                     # 2-7 day momentum table
     python main.py --max-candidates 60 --interval 20
                                                      # scan a bigger pool
     python main.py --offline                        # demo with synthetic data
@@ -35,9 +46,11 @@ trending + Reddit cashtag mentions, capped at --max-candidates (default
 15). Raising it considers more tickers per scan but takes longer -- if a
 scan starts taking longer than --interval, raise --interval to match.
 
-An upcoming earnings date within that ~4-week window is flagged separately
-(real event risk a technical setup can't account for). In live mode, a
-newly-appearing rebound candidate triggers a terminal bell + banner.
+An upcoming earnings date within the ~4-week rebound window is flagged
+separately (real event risk a technical setup can't account for). In live
+mode, a newly-appearing rebound candidate triggers a terminal bell +
+banner (same-day movers don't alert, since "still up today" isn't new
+information the way "just became a candidate" is).
 
 Penny stocks (price below MIN_PRICE, $5 by default) are excluded entirely,
 not just scored low -- see config.py.
@@ -56,6 +69,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 import config
+from src.analysis.day_movers import rank_day_movers, scan_for_day_movers
 from src.analysis.dip_scanner import rank_dip_candidates, scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
 from src.data_sources import market_data, news, reddit, stocktwits
@@ -174,6 +188,25 @@ def print_rebound_section(candidates, heading="REBOUND CANDIDATES"):
     )
 
 
+def print_day_mover_section(movers):
+    ranked = rank_day_movers(movers)
+    print("\n" + "=" * 88)
+    print("SAME-DAY MOMENTUM MOVERS -- big move + unusual volume today (not a round-trip guarantee)")
+    print("=" * 88)
+    if not ranked:
+        print("None right now.")
+        return
+    for i, m in enumerate(ranked, 1):
+        print(f"{i}. {m.ticker:<8} ${m.last_price:<10.2f} today {m.change_1d_pct:+.1f}%")
+        print(f"   {m.summary}")
+    print(
+        "\nReminder: same-day (intraday) trading is high-risk speculation. This only flags "
+        "unusual price+volume activity happening today -- it does NOT predict which way the "
+        "rest of the day goes, and it is not built from real-time/intraday data, only the "
+        "latest daily bar. Verify independently before trading on it."
+    )
+
+
 def save_output(scores, path):
     rows = [asdict(s) for s in scores]
     if path.endswith(".json"):
@@ -224,6 +257,9 @@ def run_scan(args, watchlist):
 
     dip_candidates = scan_for_dips(raw_data)
     print_rebound_section(dip_candidates)
+
+    day_movers = scan_for_day_movers(raw_data)
+    print_day_mover_section(day_movers)
 
     if args.output:
         save_output(all_ranked, args.output)

@@ -1,17 +1,26 @@
-# Stock Scanner: Rebound Candidates + Momentum
+# Stock Scanner: Rebound Candidates + Same-Day Movers + Momentum
 
 Compiles news headlines, Reddit posts, and StockTwits messages for a set of
-tickers and blends that with price/volume technicals. **By default it only
-shows REBOUND CANDIDATES**: tickers with a low RSI that just dipped sharply
-but show early signs of stabilizing, framed around a "days to ~4 weeks"
-horizon. Pass `--show-momentum` to also see the original momentum-ranked
-list (tickers already trending *up*, aimed at a 2-7 day hold).
+tickers and blends that with price/volume technicals. **Default output has
+two sections:**
 
-> **Not investment advice.** Both modes are automated heuristic screens --
+1. **REBOUND CANDIDATES** -- tickers with a low RSI that just dipped
+   sharply but show early signs of stabilizing, framed around a "days to
+   ~4 weeks" horizon.
+2. **SAME-DAY MOMENTUM MOVERS** -- tickers up sharply *today* on unusually
+   high volume. This is a distinct, separately-computed signal from #1 --
+   see "Known limitations" for why it's explicitly not a same-day
+   round-trip prediction.
+
+Pass `--show-momentum` for a third, optional view: the original 2-7 day
+momentum-ranked table (tickers already trending *up*, multi-day hold).
+
+> **Not investment advice.** All three are automated heuristic screens --
 > a low RSI after a big drop is not a guarantee of a bounce (it can keep
-> falling, a "falling knife"), and high-buzz momentum names carry elevated
-> reversal risk. Always do your own due diligence before trading anything
-> either mode surfaces.
+> falling, a "falling knife"), a big move on volume today doesn't predict
+> where the rest of the day goes, and high-buzz momentum names carry
+> elevated reversal risk. Always do your own due diligence before trading
+> anything any of them surfaces.
 
 ## How it works
 
@@ -30,18 +39,22 @@ Reddit $cashtags▶│              │
         │  price/volume history · earnings│
         └────────────────────────────────┘
                          │
-                 ┌───────┴───────┐
-                 ▼               ▼
-     ┌───────────────────┐  ┌─────────────────────────┐
-     │ dip/rebound scan   │  │ momentum scoring         │
-     │ low RSI + just     │  │ sentiment · momentum ·   │
-     │ dipped + sentiment │  │ buzz · technical         │
-     │ not bearish        │  │ (--show-momentum)        │
-     └───────────────────┘  └─────────────────────────┘
-                 │               │
-                 ▼               ▼
-     REBOUND CANDIDATES    ranked top-N (opt-in)
-     (default output)
+              ┌──────────┼──────────────┐
+              ▼          ▼              ▼
+     ┌────────────┐ ┌────────────┐ ┌─────────────────┐
+     │ dip/rebound│ │ same-day   │ │ momentum scoring │
+     │ scan: low  │ │ mover scan:│ │ sentiment ·      │
+     │ RSI + just │ │ big move + │ │ momentum · buzz ·│
+     │ dipped +   │ │ volume     │ │ technical        │
+     │ sentiment  │ │ surge      │ │ (--show-momentum)│
+     │ not bearish│ │ today      │ │                  │
+     └────────────┘ └────────────┘ └─────────────────┘
+              │          │              │
+              ▼          ▼              ▼
+     REBOUND        SAME-DAY        ranked top-N
+     CANDIDATES     MOMENTUM        (opt-in)
+     (default)      MOVERS
+                     (default)
 ```
 
 ### 1. Ticker discovery (`src/ticker_discovery.py`)
@@ -202,6 +215,37 @@ A stock that's down sharply can keep falling regardless of what RSI or
 sentiment say. Treat every name here as "worth a closer look," not a buy
 signal.
 
+### 6. Same-day momentum movers (`src/analysis/day_movers.py`) -- also default output
+
+The second default section: tickers up sharply *today* on unusually high
+volume. Also reuses already-fetched price data, no extra API calls. A
+ticker qualifies when **both** of:
+
+- **Today's gain** at or above `DAY_MOVER_MIN_CHANGE_PCT` (3%).
+- **Volume surge** at or above `DAY_MOVER_MIN_VOLUME_SURGE` (1.5x the
+  20-day average) -- without this, a stock drifting up on ordinary volume
+  isn't unusual, it's noise.
+
+Ranked biggest same-day gain first, printed in a **SAME-DAY MOMENTUM
+MOVERS** section.
+
+**Read this part carefully.** This is *not* the same claim as the original
+2-7 day momentum table, and it is *not* a same-day round-trip prediction.
+Real same-day (intraday) trading signals need real-time, minute-by-minute
+price/volume data and live order flow -- this tool only has **daily**
+bars, refreshed at most every few minutes while live tracking polls. Two
+consequences worth understanding:
+
+- If run while the market is open, the "latest" daily bar is typically
+  still-forming, so `change_1d_pct` reflects the move *so far* today, not
+  a finished session -- it can (and will) change by the time you look
+  again.
+- This flags unusual **activity**, not **direction for the rest of the
+  day**. A stock up 5% on 3x volume at 11am can close up 15% or back down
+  to flat by 4pm; nothing here distinguishes those outcomes. Buying and
+  selling the same day is high-risk speculation regardless of what this
+  list says -- treat it as "worth watching," not a signal to act on.
+
 ## Setup
 
 ```bash
@@ -271,13 +315,26 @@ REBOUND CANDIDATES -- low RSI, just dipped, sentiment not panicking (~4wk horizo
    DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100); earnings in 15d (2026-07-25) -- added event risk inside the rebound window
 
 Reminder: these are oversold-bounce candidates, not predictions -- a sharp drop can keep falling (a "falling knife") instead of rebounding. Verify independently.
+
+========================================================================================
+SAME-DAY MOMENTUM MOVERS -- big move + unusual volume today (not a round-trip guarantee)
+========================================================================================
+1. TOPPY    $14.20      today +13.8%
+   TOPPY +13.8% today -- volume 3.4x its 20-day average; RSI 100
+2. MOMO     $24.95      today +3.8%
+   MOMO +3.8% today -- volume 2.5x its 20-day average; RSI 98
+
+Reminder: same-day (intraday) trading is high-risk speculation. This only flags unusual price+volume activity happening today -- it does NOT predict which way the rest of the day goes, and it is not built from real-time/intraday data, only the latest daily bar. Verify independently before trading on it.
 ```
-(`BAGGY` dropped just as hard as `DIPPY` but does **not** show up here --
-its drop comes with bearish sentiment, i.e. a falling knife, not a bounce
-setup. That exclusion is the whole point of the sentiment filter.)
+(`BAGGY` dropped just as hard as `DIPPY` but does **not** show up in
+REBOUND CANDIDATES -- its drop comes with bearish sentiment, i.e. a
+falling knife, not a bounce setup. That exclusion is the whole point of
+the sentiment filter. Note `TOPPY` and `MOMO` appear in SAME-DAY MOMENTUM
+MOVERS purely because they're up big today on high volume -- that's a
+completely separate signal from REBOUND CANDIDATES above it.)
 
 Sample output with `--show-momentum` (adds the original 2-7 day,
-trending-*up* table above the REBOUND CANDIDATES section):
+trending-*up* table above the default two sections -- all three print):
 
 ```
 Top short-term (2-7 day) momentum candidates as of 2026-07-09 05:50 UTC
@@ -313,7 +370,8 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
 `RISK_EARNINGS_WINDOW_DAYS`, `DEFAULT_WATCH_INTERVAL_MINUTES`,
 `MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
-`DIP_MIN_SENTIMENT`, `DIP_EARNINGS_WINDOW_DAYS`, `MAX_DISCOVERY_CANDIDATES`, etc).
+`DIP_MIN_SENTIMENT`, `DIP_EARNINGS_WINDOW_DAYS`, `DAY_MOVER_MIN_CHANGE_PCT`,
+`DAY_MOVER_MIN_VOLUME_SURGE`, `MAX_DISCOVERY_CANDIDATES`, etc).
 
 `MAX_DISCOVERY_CANDIDATES` (default 15, or pass `--max-candidates` directly)
 caps how many auto-discovered tickers get scored on top of `--watchlist`.
@@ -331,10 +389,11 @@ pytest -q
 
 Tests cover sentiment weighting/blending, technical indicator math (RSI,
 momentum, volume surge), the composite scoring/filtering/ranking logic,
-dip-candidate detection (including the falling-knife exclusion), and
-cashtag-based ticker discovery -- all against synthetic data, no network
-required. `tests/test_integration_offline.py` runs the full scoring pipeline
-end-to-end against the bundled sample dataset.
+dip-candidate detection (including the falling-knife exclusion), same-day
+mover detection, and cashtag-based ticker discovery -- all against
+synthetic data, no network required. `tests/test_integration_offline.py`
+runs the full scoring pipeline end-to-end against the bundled sample
+dataset.
 
 ## Known limitations
 
@@ -362,3 +421,10 @@ end-to-end against the bundled sample dataset.
   terminal bell + on-screen banner, not a push notification -- it only
   "reaches" you if that terminal is open and visible/audible. There's no
   phone/email delivery built in.
+- SAME-DAY MOMENTUM MOVERS (the other default section) is **not** a
+  same-day trading signal in any predictive sense -- it identifies unusual
+  price+volume activity using the latest **daily** bar, which this tool
+  has no way to distinguish from "about to keep climbing" vs. "about to
+  give it all back before the close." There is no real-time/intraday data
+  behind it. Treat same-day (intraday) buying and selling as high-risk
+  speculation independent of anything this list shows.

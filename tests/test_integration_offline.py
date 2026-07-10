@@ -1,6 +1,7 @@
 """End-to-end pipeline test using the bundled synthetic dataset -- exercises
 discovery-free scoring against realistic-shaped data without any network
 calls, so it runs anywhere (including network-restricted CI/sandboxes)."""
+from src.analysis.day_movers import scan_for_day_movers
 from src.analysis.dip_scanner import scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
 from src.sample_data import generate_offline_dataset
@@ -76,3 +77,11 @@ def test_dippy_rebound_candidate_carries_earnings_flag():
     dippy = candidates["DIPPY"]
     assert dippy.earnings_date is not None
     assert any("earnings" in r.lower() for r in dippy.reasons)
+
+
+def test_same_day_movers_flags_toppy_and_momo_but_not_the_dip_or_bearish_names():
+    movers = {m.ticker for m in scan_for_day_movers(_raw_data())}
+    assert "TOPPY" in movers  # huge same-day pop + volume surge
+    assert "MOMO" in movers  # solid same-day gain + volume surge
+    assert "DIPPY" not in movers  # down today, not a "mover"
+    assert "BAGGY" not in movers  # down today, not a "mover"
