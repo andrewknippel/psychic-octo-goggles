@@ -3,12 +3,17 @@ stabilizing -- a mean-reversion ("buy the dip") setup, as distinct from
 `scoring.py`'s main scorer, which favors names already trending *up*.
 
 IMPORTANT: this flags *candidates worth a closer look*, not predictions.
-A sharp drop can just as easily keep falling (a "falling knife") as bounce.
-The sentiment filter below exists specifically to weed out drops driven by
-genuinely bad, ongoing news -- but it's a heuristic, not a guarantee.
+A sharp drop can just as easily keep falling (a "falling knife") as bounce,
+and there is no way for this -- or any other tool -- to guarantee a bounce
+happens within any specific window. "Rebound within ~4 weeks" describes
+the horizon this kind of oversold-bounce setup is typically evaluated
+over, not a promise of what will happen. The sentiment filter below exists
+specifically to weed out drops driven by genuinely bad, ongoing news, and
+the earnings check flags a real risk that could blow through that window
+-- but both are heuristics, not guarantees.
 """
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
 import config
@@ -25,6 +30,7 @@ class DipCandidate:
     change_5d_pct: float
     rsi: Optional[float]
     sentiment_score: float
+    earnings_date: Optional[str] = None  # ISO date string, None if unknown/not upcoming
     reasons: List[str] = field(default_factory=list)
 
     @property
@@ -38,6 +44,7 @@ def find_dip_candidate(
     social_mentions: List[Mention],
     price_series: Optional[PriceSeries],
     now: Optional[datetime] = None,
+    earnings_date: Optional[date] = None,
 ) -> Optional[DipCandidate]:
     if price_series is None:
         return None
@@ -69,6 +76,17 @@ def find_dip_candidate(
         reasons.append("decline decelerating over the last 3 days")
     reasons.append(f"sentiment not panicking ({sentiment_score:.0f}/100)")
 
+    days_to_earnings = None
+    if earnings_date is not None:
+        days_to_earnings = (earnings_date - now.date()).days
+        if 0 <= days_to_earnings <= config.DIP_EARNINGS_WINDOW_DAYS:
+            reasons.append(
+                f"earnings in {days_to_earnings}d ({earnings_date.isoformat()}) -- "
+                "added event risk inside the rebound window"
+            )
+        else:
+            days_to_earnings = None  # outside the window: not relevant, don't report it
+
     return DipCandidate(
         ticker=ticker,
         last_price=round(tech.last_price, 2),
@@ -76,15 +94,31 @@ def find_dip_candidate(
         change_5d_pct=round(tech.change_5d_pct, 2),
         rsi=round(tech.rsi, 1) if tech.rsi is not None else None,
         sentiment_score=round(sentiment_score, 2),
+        earnings_date=earnings_date.isoformat() if days_to_earnings is not None else None,
         reasons=reasons,
     )
 
 
 def scan_for_dips(ticker_data) -> List[DipCandidate]:
-    """ticker_data: iterable of (ticker, news_mentions, social_mentions, price_series)."""
+    """ticker_data: iterable of (ticker, news_mentions, social_mentions,
+    price_series, earnings_date) -- earnings_date may be omitted/None."""
     candidates = []
-    for ticker, news_mentions, social_mentions, price_series in ticker_data:
-        candidate = find_dip_candidate(ticker, news_mentions, social_mentions, price_series)
+    for row in ticker_data:
+        if len(row) == 5:
+            ticker, news_mentions, social_mentions, price_series, earnings_date = row
+        else:
+            ticker, news_mentions, social_mentions, price_series = row
+            earnings_date = None
+        candidate = find_dip_candidate(
+            ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
+        )
         if candidate is not None:
             candidates.append(candidate)
     return candidates
+
+
+def rank_dip_candidates(candidates: List[DipCandidate]) -> List[DipCandidate]:
+    """Most-oversold (lowest RSI) first -- the clearest, most directly
+    "low RSI" signal of how stretched a candidate is. Candidates with no
+    RSI (too little price history) sort last, not excluded."""
+    return sorted(candidates, key=lambda c: c.rsi if c.rsi is not None else 999.0)

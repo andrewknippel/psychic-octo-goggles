@@ -127,3 +127,9 @@ DIP_RSI_OVERSOLD = _float_env("DIP_RSI_OVERSOLD", 32.0)
 # with genuinely bearish sentiment reads as a falling knife (bad
 # company-specific news), not a bounce setup -- this filters those out.
 DIP_MIN_SENTIMENT = _float_env("DIP_MIN_SENTIMENT", 40.0)
+
+# Dip candidates are framed around a "days to ~4 weeks" rebound horizon --
+# an earnings report anywhere in that window is real event risk (it can
+# move the stock on its own terms regardless of the technical setup), so
+# it's flagged when the next earnings date falls within this many days.
+DIP_EARNINGS_WINDOW_DAYS = _int_env("DIP_EARNINGS_WINDOW_DAYS", 28)

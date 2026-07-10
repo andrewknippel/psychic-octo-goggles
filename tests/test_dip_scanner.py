@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 import config
-from src.analysis.dip_scanner import find_dip_candidate, scan_for_dips
+from src.analysis.dip_scanner import (
+    find_dip_candidate,
+    rank_dip_candidates,
+    scan_for_dips,
+)
 from src.models import Mention, PriceSeries
 
 NOW = datetime.now(timezone.utc)
@@ -88,3 +92,57 @@ def test_scan_for_dips_filters_a_mixed_batch():
     ]
     results = {c.ticker for c in scan_for_dips(batch)}
     assert results == {"BOUNCE"}
+
+
+def test_scan_for_dips_accepts_5_tuples_with_earnings_date():
+    bounce_mentions = [_mention("BOUNCE", tag="Bullish", hours_ago=i) for i in range(4)]
+    earnings_soon = (NOW + timedelta(days=10)).date()
+    batch = [
+        ("BOUNCE", [], bounce_mentions, _series("BOUNCE", [20, 19, 17.5, 16, 15.2, 15.0]), earnings_soon),
+    ]
+    results = {c.ticker: c for c in scan_for_dips(batch)}
+    assert "BOUNCE" in results
+    assert results["BOUNCE"].earnings_date == earnings_soon.isoformat()
+
+
+def test_earnings_within_window_is_flagged_in_reasons():
+    mentions = [_mention("EARN", tag="Bullish", hours_ago=i) for i in range(4)]
+    series = _series("EARN", [20, 19, 17.5, 16, 15.2, 15.0])
+    earnings_in_10_days = (NOW + timedelta(days=10)).date()
+    candidate = find_dip_candidate(
+        "EARN", [], mentions, series, now=NOW, earnings_date=earnings_in_10_days
+    )
+    assert candidate is not None
+    assert candidate.earnings_date == earnings_in_10_days.isoformat()
+    assert any("earnings" in r.lower() for r in candidate.reasons)
+
+
+def test_earnings_outside_window_not_flagged():
+    mentions = [_mention("EARN2", tag="Bullish", hours_ago=i) for i in range(4)]
+    series = _series("EARN2", [20, 19, 17.5, 16, 15.2, 15.0])
+    earnings_far_out = (NOW + timedelta(days=60)).date()
+    candidate = find_dip_candidate(
+        "EARN2", [], mentions, series, now=NOW, earnings_date=earnings_far_out
+    )
+    assert candidate is not None
+    assert candidate.earnings_date is None
+    assert not any("earnings" in r.lower() for r in candidate.reasons)
+
+
+def test_rank_dip_candidates_sorts_most_oversold_first():
+    mild_mentions = [_mention("MILD", tag="Bullish", hours_ago=i) for i in range(4)]
+    deep_mentions = [_mention("DEEP", tag="Bullish", hours_ago=i) for i in range(4)]
+    # Both clear the drop threshold; DEEP is far more oversold (lower RSI).
+    mild = find_dip_candidate(
+        "MILD", [], mild_mentions,
+        _series("MILD", [30, 30.2, 29.9, 30.1, 28.5, 27.5, 27.0, 26.8, 26.6]),
+        now=NOW,
+    )
+    deep = find_dip_candidate(
+        "DEEP", [], deep_mentions,
+        _series("DEEP", [30, 30.2, 29.9, 30.1, 24.0, 20.0, 17.0, 15.0, 14.0]),
+        now=NOW,
+    )
+    assert mild is not None and deep is not None
+    ranked = rank_dip_candidates([mild, deep])
+    assert [c.ticker for c in ranked] == ["DEEP", "MILD"]

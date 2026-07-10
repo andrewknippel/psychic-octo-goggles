@@ -56,13 +56,23 @@ def test_slow_ticker_has_no_earnings_flag_and_fewer_risk_flags_than_toppy():
     assert len(scores["SLOW"].risk_flags) < len(scores["TOPPY"].risk_flags)
 
 
-def test_dip_watch_flags_dippy_but_not_the_bearish_falling_knife():
+def _raw_data():
     dataset = generate_offline_dataset()
-    raw_data = [
-        (ticker, news_mentions, social_mentions, price_series)
-        for ticker, (news_mentions, social_mentions, price_series, _earnings_date)
+    return [
+        (ticker, news_mentions, social_mentions, price_series, earnings_date)
+        for ticker, (news_mentions, social_mentions, price_series, earnings_date)
         in dataset.items()
     ]
-    dip_tickers = {c.ticker for c in scan_for_dips(raw_data)}
+
+
+def test_dip_watch_flags_dippy_but_not_the_bearish_falling_knife():
+    dip_tickers = {c.ticker for c in scan_for_dips(_raw_data())}
     assert "DIPPY" in dip_tickers
     assert "BAGGY" not in dip_tickers
+
+
+def test_dippy_rebound_candidate_carries_earnings_flag():
+    candidates = {c.ticker: c for c in scan_for_dips(_raw_data())}
+    dippy = candidates["DIPPY"]
+    assert dippy.earnings_date is not None
+    assert any("earnings" in r.lower() for r in dippy.reasons)

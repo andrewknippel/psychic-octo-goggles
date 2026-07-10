@@ -12,9 +12,11 @@ Five archetypes are included to exercise the scorer meaningfully:
             sub-score and both the overbought/earnings risk flags)
   * DIPPY - dropped sharply but sentiment is holding up ("buying the dip"
             framing, not bad company-specific news) and the decline is
-            decelerating/oversold -- should surface in dip_scanner's
-            DIP WATCH, unlike BAGGY, whose drop is paired with bearish
-            sentiment and reads as a falling knife instead
+            decelerating/oversold, plus earnings in 15 days (inside the
+            ~4wk rebound window) -- should surface in dip_scanner's
+            REBOUND CANDIDATES with an earnings flag, unlike BAGGY, whose
+            drop is paired with bearish sentiment and reads as a falling
+            knife instead
 """
 import random
 import zlib
@@ -199,7 +201,7 @@ def generate_offline_dataset():
             "DIPPY", 40.0, _BASELINE_FLAT + [-3.5, -4.0, -2.5, -0.8],
             volumes=_BASELINE_VOL[:7] + [700_000, 1_100_000, 1_600_000, 1_900_000, 1_200_000],
         ),
-        None,
+        _TODAY + timedelta(days=15),  # inside the ~4wk rebound window -> earnings flag
     )
 
     return dataset

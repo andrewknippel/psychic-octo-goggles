@@ -1,12 +1,17 @@
-# Short-Term Stock Scanner
+# Stock Scanner: Rebound Candidates + Momentum
 
 Compiles news headlines, Reddit posts, and StockTwits messages for a set of
-tickers, blends that with price/volume momentum, and ranks the tickers by a
-composite score aimed at **2-7 day** growth potential.
+tickers and blends that with price/volume technicals. **By default it only
+shows REBOUND CANDIDATES**: tickers with a low RSI that just dipped sharply
+but show early signs of stabilizing, framed around a "days to ~4 weeks"
+horizon. Pass `--show-momentum` to also see the original momentum-ranked
+list (tickers already trending *up*, aimed at a 2-7 day hold).
 
-> **Not investment advice.** This is an automated attention + momentum
-> screen. High-buzz, high-momentum names carry elevated reversal risk.
-> Always do your own due diligence before trading anything it surfaces.
+> **Not investment advice.** Both modes are automated heuristic screens --
+> a low RSI after a big drop is not a guarantee of a bounce (it can keep
+> falling, a "falling knife"), and high-buzz momentum names carry elevated
+> reversal risk. Always do your own due diligence before trading anything
+> either mode surfaces.
 
 ## How it works
 
@@ -22,18 +27,21 @@ Reddit $cashtags▶│              │
         ┌────────────────────────────────┐
         │   per-ticker data collection    │
         │  news · Reddit · StockTwits ·   │
-        │      price/volume history       │
+        │  price/volume history · earnings│
         └────────────────────────────────┘
                          │
-                         ▼
-        ┌────────────────────────────────┐
-        │            scoring              │
-        │ sentiment · momentum · buzz ·   │
-        │           technical             │
-        └────────────────────────────────┘
-                         │
-                         ▼
-              ranked top-N candidates
+                 ┌───────┴───────┐
+                 ▼               ▼
+     ┌───────────────────┐  ┌─────────────────────────┐
+     │ dip/rebound scan   │  │ momentum scoring         │
+     │ low RSI + just     │  │ sentiment · momentum ·   │
+     │ dipped + sentiment │  │ buzz · technical         │
+     │ not bearish        │  │ (--show-momentum)        │
+     └───────────────────┘  └─────────────────────────┘
+                 │               │
+                 ▼               ▼
+     REBOUND CANDIDATES    ranked top-N (opt-in)
+     (default output)
 ```
 
 ### 1. Ticker discovery (`src/ticker_discovery.py`)
@@ -156,34 +164,43 @@ Each `ScoreBreakdown` carries a `risk_flags` list (also folded into
   `RISK_EARNINGS_WINDOW_DAYS` (7) of today, meaning a binary, momentum-blind
   event could land during the hold.
 
-### 5. Dip watch (`src/analysis/dip_scanner.py`)
+### 5. Rebound candidates (`src/analysis/dip_scanner.py`) -- the default output
 
-A second, independent scan that looks for the *opposite* setup: tickers
-that dropped sharply but show early signs of stabilizing. It reuses the
-same news/social/price data already fetched for the main scan -- no extra
-API calls. A ticker qualifies when **all** of:
+This is what prints by default: an independent scan for the *opposite*
+setup from momentum-chasing -- tickers that dropped sharply but show early
+signs of stabilizing. It reuses the same news/social/price data already
+fetched for the main scan -- no extra API calls. A ticker qualifies when
+**all** of:
 
-- **5-day decline** at or past `DIP_DROP_PCT` (8%).
+- **5-day decline** at or past `DIP_DROP_PCT` (8%) -- the "just dipped"
+  part.
 - **At least one reversal sign**: RSI(7) oversold (`DIP_RSI_OVERSOLD`, 32)
   and/or the 3-day return is less negative than the 5-day return (the drop
-  is decelerating).
+  is decelerating) -- the "low RSI" / "chance of rebounding" part.
 - **Sentiment hasn't turned bearish** -- at/above `DIP_MIN_SENTIMENT` (40).
   This is the key filter: a big drop *paired with* genuinely bearish
   news/social sentiment reads as a "falling knife" (real bad news, no
   reason to expect a bounce), not a dip-buy setup, and is excluded.
 
-Every scan prints a **DIP WATCH** section below the main table. In the
-default live-tracking loop, a ticker *newly* entering dip-watch status
-(not one still sitting there from last cycle) triggers a terminal bell +
-banner -- that's what "notify" means here: an on-screen/audible alert
-while the terminal is open and the loop is running, not a push
-notification to your phone or email (that would need a separate
-service/credentials -- ask if you want that added).
+Qualifying tickers are ranked **most-oversold (lowest RSI) first** and
+printed in a **REBOUND CANDIDATES** section, along with an **earnings
+flag** if the next earnings date falls within `DIP_EARNINGS_WINDOW_DAYS`
+(28 -- roughly the "~4 weeks" horizon this mode is framed around): a report
+landing during that window is real, technical-setup-independent risk.
 
-**This is a heuristic candidate list, not a bounce prediction.** A stock
-that's down sharply can keep falling regardless of what RSI or sentiment
-say. Treat it as "worth a closer look," the same as everything else this
-tool surfaces.
+In the default live-tracking loop, a ticker *newly* becoming a rebound
+candidate (not one still sitting there from last cycle) triggers a
+terminal bell + banner -- that's what "notify" means here: an
+on-screen/audible alert while the terminal is open and the loop is
+running, not a push notification to your phone or email (that would need
+a separate service/credentials -- ask if you want that added).
+
+**This is a heuristic candidate list, not a bounce prediction, and "~4
+weeks" is a framing, not a promise.** Nothing -- this tool included -- can
+guarantee a stock rebounds, or that it does so by any particular deadline.
+A stock that's down sharply can keep falling regardless of what RSI or
+sentiment say. Treat every name here as "worth a closer look," not a buy
+signal.
 
 ## Setup
 
@@ -199,11 +216,14 @@ cp .env.example .env   # optional: add a NEWSAPI_KEY for richer news coverage
 if you just want a single scan.
 
 ```bash
-# Live: score ~15 auto-discovered tickers, show your top 5, every 10 min
+# Live: scan ~15 auto-discovered tickers for REBOUND CANDIDATES, every 10 min
 python main.py
 
 # Same idea, but always include these tickers in the scan too
 python main.py --watchlist AAPL,TSLA,NVDA,GME
+
+# Also show the original momentum-ranked (2-7 day, trending-up) table
+python main.py --show-momentum --top 5
 
 # Same, but every 20 min instead of the default 10 (5 min floor enforced)
 python main.py --watchlist AAPL,TSLA,NVDA --interval 20
@@ -214,13 +234,13 @@ python main.py --watchlist AAPL,TSLA,NVDA --once
 # Only score the named tickers, skip trending discovery
 python main.py --watchlist AAPL,MSFT --no-trending --once
 
-# Cast a much wider net -- scan up to 60 auto-discovered tickers and show
-# your top 15, instead of the ~15-scanned/top-5 default (bump --interval
-# too, since a bigger pool scans slower)
-python main.py --max-candidates 60 --interval 20 --top 15
+# Cast a much wider net -- scan up to 60 auto-discovered tickers instead
+# of the ~15 default (bump --interval too, since a bigger pool scans slower)
+python main.py --max-candidates 60 --interval 20
 
-# Save full results on every refresh (all scored tickers, not just top N)
-python main.py --watchlist AAPL,TSLA --output output/results.json
+# Save full results on every refresh (all scored tickers, not just top N;
+# only meaningful with --show-momentum, since that's what --top limits)
+python main.py --watchlist AAPL,TSLA --show-momentum --output output/results.json
 
 # Demo/test the pipeline with bundled synthetic data (no network required)
 python main.py --offline --once -v
@@ -239,12 +259,28 @@ ticker below that price never appears in the ranked table or DIP WATCH,
 regardless of how it scores otherwise. Lower it via `MIN_PRICE` in
 `config.py`/`.env` if you actually want penny stocks included.
 
-Sample output (deterministic -- the synthetic dataset uses a fixed seed, so
-scores/RSI/volatility are stable run to run; only `earnings_date` and the
-`as of` timestamp shift with the current date):
+Sample output, default mode (deterministic -- the synthetic dataset uses a
+fixed seed, so scores/RSI/volatility are stable run to run; only
+`earnings_date` shifts with the current date):
 
 ```
-Top short-term (2-7 day) growth candidates as of 2026-07-09 05:50 UTC
+========================================================================================
+REBOUND CANDIDATES -- low RSI, just dipped, sentiment not panicking (~4wk horizon, not a prediction)
+========================================================================================
+1. DIPPY    $36.02      3d -7.1%  5d -10.6%  RSI 3  earnings 2026-07-25
+   DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100); earnings in 15d (2026-07-25) -- added event risk inside the rebound window
+
+Reminder: these are oversold-bounce candidates, not predictions -- a sharp drop can keep falling (a "falling knife") instead of rebounding. Verify independently.
+```
+(`BAGGY` dropped just as hard as `DIPPY` but does **not** show up here --
+its drop comes with bearish sentiment, i.e. a falling knife, not a bounce
+setup. That exclusion is the whole point of the sentiment filter.)
+
+Sample output with `--show-momentum` (adds the original 2-7 day,
+trending-*up* table above the REBOUND CANDIDATES section):
+
+```
+Top short-term (2-7 day) momentum candidates as of 2026-07-09 05:50 UTC
 
 QUICK PICKS (ticker, score out of 100):
 1. TOPPY (54.5)   2. MOMO (53.5)   3. SLOW (24.7)   4. DIPPY (21.3)   5. BAGGY (13.8)
@@ -260,21 +296,12 @@ QUICK PICKS (ticker, score out of 100):
 (Vol% = avg daily price swing over the last ~10 days; Risk = number of risk flags below, '-' = none)
 
 1. TOPPY -- 100% bullish across 11 social mentions; +45.3% over 3 days; 3.4x normal trading volume; RSI 100. Risk: Overbought (RSI 100); High volatility (~6.3%/day swings); Extended move (+45% in 3 days); Earnings in 2d (2026-07-11).
-2. MOMO -- 100% bullish across 11 social mentions; +10.2% over 3 days; 2.5x normal trading volume; RSI 98. Risk: Overbought (RSI 98).
 ...
-
-----------------------------------------------------------------------------------------
-DIP WATCH -- sharp drops showing possible reversal signs (not a prediction, see README)
-----------------------------------------------------------------------------------------
-  DIPPY    $36.02      3d -7.1%  5d -10.6%  RSI 3
-           DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100)
 ```
-(`QUIET` is deliberately excluded from this run -- it fails `MIN_MENTIONS`.) Note how
-`TOPPY` still ranks #1 on raw score despite carrying four risk flags -- the
-score measures attention + momentum, not safety, which is exactly why the
-flags exist as a separate signal. `DIPPY` and `BAGGY` both dropped
-comparably hard, but only `DIPPY` shows up in DIP WATCH -- `BAGGY`'s drop
-comes with bearish sentiment (falling knife), `DIPPY`'s doesn't.
+(`QUIET` is deliberately excluded from this run -- it fails `MIN_MENTIONS`.)
+Note how `TOPPY` still ranks #1 on raw momentum score despite carrying four
+risk flags -- that score measures attention + momentum, not safety, which
+is exactly why the risk flags exist as a separate signal.
 
 ## Tuning
 
@@ -286,7 +313,7 @@ list (`WEIGHT_SENTIMENT`, `WEIGHT_MOMENTUM`, `WEIGHT_BUZZ`,
 `RISK_RSI_OVERSOLD`, `RISK_VOLATILITY_PCT`, `RISK_EXTENDED_MOVE_PCT`,
 `RISK_EARNINGS_WINDOW_DAYS`, `DEFAULT_WATCH_INTERVAL_MINUTES`,
 `MIN_WATCH_INTERVAL_MINUTES`, `DIP_DROP_PCT`, `DIP_RSI_OVERSOLD`,
-`DIP_MIN_SENTIMENT`, `MAX_DISCOVERY_CANDIDATES`, etc).
+`DIP_MIN_SENTIMENT`, `DIP_EARNINGS_WINDOW_DAYS`, `MAX_DISCOVERY_CANDIDATES`, etc).
 
 `MAX_DISCOVERY_CANDIDATES` (default 15, or pass `--max-candidates` directly)
 caps how many auto-discovered tickers get scored on top of `--watchlist`.
@@ -321,14 +348,17 @@ end-to-end against the bundled sample dataset.
   NLP model -- it can misread sarcasm, options jargon, and negation in
   longer posts. StockTwits' explicit Bullish/Bearish tags are weighted more
   heavily for this reason.
-- This screens for *short-term attention + momentum*, which is a different
-  (and riskier) signal than fundamental value. It is not a replacement for
-  research into the underlying business, and past momentum is not a
-  guarantee of continued momentum.
-- DIP WATCH is the same kind of heuristic screen, aimed at the opposite
-  setup (oversold/decelerating declines with non-bearish sentiment). It is
-  not a bounce prediction -- sharp drops can, and do, keep falling.
-- The dip alert (fired by the default live-tracking loop) is a local
+- `--show-momentum`'s table screens for *short-term attention + momentum*,
+  which is a different (and riskier) signal than fundamental value. It is
+  not a replacement for research into the underlying business, and past
+  momentum is not a guarantee of continued momentum.
+- REBOUND CANDIDATES (the default output) is a heuristic screen for the
+  opposite setup (oversold/decelerating declines with non-bearish
+  sentiment), framed around a "days to ~4 weeks" horizon. That framing
+  describes the timeframe this kind of setup is typically evaluated over
+  -- it is **not** a prediction that a bounce happens, or that it happens
+  by any deadline. Sharp drops can, and do, keep falling.
+- The rebound alert (fired by the default live-tracking loop) is a local
   terminal bell + on-screen banner, not a push notification -- it only
   "reaches" you if that terminal is open and visible/audible. There's no
   phone/email delivery built in.

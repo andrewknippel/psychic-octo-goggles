@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Short-term (2-7 day) stock scanner.
+"""Oversold dip/rebound scanner (default mode) + short-term momentum scanner
+(--show-momentum).
 
-Pulls news headlines, Reddit posts, and StockTwits messages for a universe
-of tickers, blends them with price/volume technicals, and ranks the
-tickers by a composite short-term-growth score.
+By default this ONLY shows REBOUND CANDIDATES: tickers with a low RSI that
+just dropped sharply, but show early signs of stabilizing, and whose
+sentiment hasn't turned bearish (which would suggest a falling knife
+instead of a bounce setup). Framed around a "days to ~4 weeks" horizon --
+that's the timeframe this kind of oversold-bounce setup typically plays
+out over, NOT a guarantee it bounces, or that it bounces by any deadline.
+Nothing can promise that; see the "Known limitations" section of README.md.
 
 Live tracking is ON by default: a plain run rescans every 10 minutes
 until you press Ctrl+C. It's polling, not a real-time feed -- News/Reddit/
@@ -13,34 +18,33 @@ or blocking you if you hit them too often, hence the 5-minute floor on
 --interval.
 
 Usage:
-    python main.py --watchlist AAPL,TSLA,NVDA --top 10
+    python main.py --watchlist AAPL,TSLA,NVDA
                                                      # live, refreshes every 10 min
     python main.py --watchlist AAPL,TSLA --interval 20
                                                      # same, but every 20 min
     python main.py --watchlist AAPL,TSLA --once     # single scan, then exit
-    python main.py --max-candidates 100 --interval 20
-                                                     # scan a much bigger pool
+    python main.py --show-momentum --top 10         # also show the original
+                                                     # momentum-ranked table
+    python main.py --max-candidates 60 --interval 20
+                                                     # scan a bigger pool
     python main.py --offline                        # demo with synthetic data
     python main.py --watchlist GME --no-trending     # only score named tickers
 
 With no --watchlist, the candidate pool is auto-discovered from StockTwits
 trending + Reddit cashtag mentions, capped at --max-candidates (default
-50). Raising it considers more tickers per scan but takes longer -- if a
+15). Raising it considers more tickers per scan but takes longer -- if a
 scan starts taking longer than --interval, raise --interval to match.
 
-Every scan also prints a "DIP WATCH" section: tickers that dropped sharply
-but show early signs of stabilizing (oversold RSI and/or a decelerating
-decline) *and* whose sentiment hasn't turned bearish -- filtering out
-falling-knife, bad-news crashes. In live mode, a newly-appearing dip
-triggers a terminal bell + banner. This is a heuristic candidate list, not
-a bounce guarantee -- see README.md's "Known limitations" section.
+An upcoming earnings date within that ~4-week window is flagged separately
+(real event risk a technical setup can't account for). In live mode, a
+newly-appearing rebound candidate triggers a terminal bell + banner.
 
 Penny stocks (price below MIN_PRICE, $5 by default) are excluded entirely,
 not just scored low -- see config.py.
 
 This is a research/screening tool, not investment advice. It surfaces
-attention + momentum, both of which can reverse violently within days --
-always do your own due diligence before trading anything it lists.
+oversold/attention/momentum signals, all of which can keep moving against
+you -- always do your own due diligence before trading anything it lists.
 """
 import argparse
 import csv
@@ -52,7 +56,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 import config
-from src.analysis.dip_scanner import scan_for_dips
+from src.analysis.dip_scanner import rank_dip_candidates, scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
 from src.data_sources import market_data, news, reddit, stocktwits
 from src.sample_data import generate_offline_dataset
@@ -70,9 +74,9 @@ logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 def gather_and_score(tickers, verbose=False):
     """Returns (scores, raw_data). raw_data holds each ticker's fetched
-    (news_mentions, social_mentions, price_series) so callers -- e.g. the
-    dip scanner -- can reuse it without refetching and burning extra
-    requests against the free/keyless APIs."""
+    (news_mentions, social_mentions, price_series, earnings_date) so
+    callers -- e.g. the dip scanner -- can reuse it without refetching and
+    burning extra requests against the free/keyless APIs."""
     scores = []
     raw_data = []
     for ticker in tickers:
@@ -84,7 +88,7 @@ def gather_and_score(tickers, verbose=False):
         ) + stocktwits.fetch_stocktwits_mentions(ticker)
         price_series = market_data.fetch_price_series(ticker)
         earnings_date = market_data.fetch_next_earnings_date(ticker)
-        raw_data.append((ticker, news_mentions, social_mentions, price_series))
+        raw_data.append((ticker, news_mentions, social_mentions, price_series, earnings_date))
 
         result = score_ticker(
             ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
@@ -104,7 +108,7 @@ def gather_and_score_offline(tickers, verbose=False):
         if ticker not in dataset:
             continue
         news_mentions, social_mentions, price_series, earnings_date = dataset[ticker]
-        raw_data.append((ticker, news_mentions, social_mentions, price_series))
+        raw_data.append((ticker, news_mentions, social_mentions, price_series, earnings_date))
         result = score_ticker(
             ticker, news_mentions, social_mentions, price_series, earnings_date=earnings_date
         )
@@ -148,17 +152,26 @@ def print_table(scores):
         print(f"{i}. {s.ticker} -- {s.rationale}")
 
 
-def print_dip_section(candidates):
-    print("\n" + "-" * 88)
-    print("DIP WATCH -- sharp drops showing possible reversal signs (not a prediction, see README)")
-    print("-" * 88)
-    if not candidates:
+def print_rebound_section(candidates, heading="REBOUND CANDIDATES"):
+    ranked = rank_dip_candidates(candidates)
+    print("\n" + "=" * 88)
+    print(f"{heading} -- low RSI, just dipped, sentiment not panicking (~4wk horizon, not a prediction)")
+    print("=" * 88)
+    if not ranked:
         print("None right now.")
         return
-    for c in candidates:
+    for i, c in enumerate(ranked, 1):
         rsi_str = f"{c.rsi:.0f}" if c.rsi is not None else "n/a"
-        print(f"  {c.ticker:<8} ${c.last_price:<10.2f} 3d {c.change_3d_pct:+.1f}%  5d {c.change_5d_pct:+.1f}%  RSI {rsi_str}")
-        print(f"           {c.summary}")
+        earn_str = f"  earnings {c.earnings_date}" if c.earnings_date else ""
+        print(
+            f"{i}. {c.ticker:<8} ${c.last_price:<10.2f} 3d {c.change_3d_pct:+.1f}%  "
+            f"5d {c.change_5d_pct:+.1f}%  RSI {rsi_str}{earn_str}"
+        )
+        print(f"   {c.summary}")
+    print(
+        "\nReminder: these are oversold-bounce candidates, not predictions -- a sharp drop "
+        "can keep falling (a \"falling knife\") instead of rebounding. Verify independently."
+    )
 
 
 def save_output(scores, path):
@@ -179,8 +192,11 @@ def save_output(scores, path):
 def run_scan(args, watchlist):
     """Runs one full discover -> fetch -> score -> print cycle.
 
-    Returns the set of tickers currently flagged by the dip scanner, so
-    --watch mode can tell a newly-appearing dip apart from one it already
+    By default only prints REBOUND CANDIDATES (oversold-dip setups). Pass
+    --show-momentum to also print the original momentum-ranked table.
+
+    Returns the set of tickers currently flagged as rebound candidates, so
+    live mode can tell a newly-appearing one apart from one it already
     told you about last cycle.
     """
     if args.offline:
@@ -199,14 +215,15 @@ def run_scan(args, watchlist):
         scores, raw_data = gather_and_score(universe, verbose=args.verbose)
 
     all_ranked = rank_tickers(scores, top_n=len(scores))
-    top = all_ranked[: args.top]
 
-    print(f"\nTop short-term (2-7 day) growth candidates as of {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}\n")
-    print_quick_summary(top)
-    print_table(top)
+    if args.show_momentum:
+        top = all_ranked[: args.top]
+        print(f"\nTop short-term (2-7 day) momentum candidates as of {datetime.now(timezone.utc):%Y-%m-%d %H:%M UTC}\n")
+        print_quick_summary(top)
+        print_table(top)
 
     dip_candidates = scan_for_dips(raw_data)
-    print_dip_section(dip_candidates)
+    print_rebound_section(dip_candidates)
 
     if args.output:
         save_output(all_ranked, args.output)
@@ -226,8 +243,8 @@ def run_watch_loop(args, watchlist):
     print(
         f"Live tracking (default mode): rescanning every {interval_minutes} min. "
         "Press Ctrl+C to stop, or rerun with --once for a single scan.\n"
-        "Dip alerts (terminal bell + banner) fire only when a ticker newly "
-        "enters dip-watch status, not on every refresh it's still sitting there.\n"
+        "Rebound alerts (terminal bell + banner) fire only when a ticker newly "
+        "becomes a candidate, not on every refresh it's still sitting there.\n"
     )
     cycle = 1
     previously_seen_dips = set()
@@ -240,7 +257,7 @@ def run_watch_loop(args, watchlist):
 
             new_dips = dip_tickers - previously_seen_dips
             if new_dips:
-                alert = f" NEW DIP ALERT: {', '.join(sorted(new_dips))} "
+                alert = f" NEW REBOUND CANDIDATE: {', '.join(sorted(new_dips))} "
                 print("\a" + alert.center(88, "!"))
             previously_seen_dips = dip_tickers
 
@@ -266,7 +283,12 @@ def main():
              f"{config.MAX_DISCOVERY_CANDIDATES}). Higher = more tickers considered but "
              f"a slower scan -- raise --interval to match if a cycle runs long.",
     )
-    parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show")
+    parser.add_argument(
+        "--show-momentum", action="store_true",
+        help="Also show the original momentum-ranked table (default: only REBOUND "
+             "CANDIDATES are shown)",
+    )
+    parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show in --show-momentum")
     parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten on each refresh)")
     parser.add_argument(
         "--offline", action="store_true",
