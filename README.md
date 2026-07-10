@@ -1,12 +1,20 @@
 # Short-Term Stock Scanner
 
-Compiles news headlines, Reddit posts, and StockTwits messages for a set of
-tickers, blends that with price/volume momentum, and ranks the tickers by a
-composite score aimed at **2-7 day** growth potential.
+Two related tools live here, both aimed at short-term (days-to-a-week)
+trading decisions:
 
-> **Not investment advice.** This is an automated attention + momentum
-> screen. High-buzz, high-momentum names carry elevated reversal risk.
-> Always do your own due diligence before trading anything it surfaces.
+- **`main.py`** -- scans a *universe* of tickers (your watchlist plus
+  auto-discovered trending names) and ranks them by a news/social-attention
+  + momentum composite score. See "How it works" below.
+- **`analyze.py`** -- takes a *single* ticker and answers two specific
+  questions: what's the probability of a short-term gain within a week, and
+  what's the best estimated day to sell? See "Single-ticker analysis"
+  further down.
+
+> **Not investment advice.** Both tools are statistical/heuristic screens,
+> not predictions. High-buzz, high-momentum names carry elevated reversal
+> risk. Always do your own due diligence before trading anything they
+> surface.
 
 ## How it works
 
@@ -276,6 +284,62 @@ flags exist as a separate signal. `DIPPY` and `BAGGY` both dropped
 comparably hard, but only `DIPPY` shows up in DIP WATCH -- `BAGGY`'s drop
 comes with bearish sentiment (falling knife), `DIPPY`'s doesn't.
 
+## Single-ticker analysis (`analyze.py`)
+
+`main.py` ranks a *pool* of tickers by attention + momentum. `analyze.py`
+instead answers two specific questions about *one* ticker you already have
+in mind:
+
+1. What's the probability of a short-term (within-the-week) gain?
+2. Given that, what's the best estimated day to sell?
+
+```bash
+python analyze.py AAPL
+python analyze.py TSLA --period 10y --k 60        # deeper history, more analogs
+python analyze.py NVDA --output output/nvda.json  # save the full result as JSON
+python analyze.py DEMO --offline                  # synthetic demo, no network
+```
+
+### Method: historical analogs (k-nearest-neighbor)
+
+This isn't a machine-learning price predictor -- it's a base-rate lookup
+grounded entirely in the ticker's own price history:
+
+1. Pull up to 5 years of daily price/volume history via `yfinance`
+   (`--period` controls how far back; falls back to `max` automatically if
+   a ticker -- e.g. a recent IPO -- doesn't have that much history).
+2. Compute a 6-feature "technical state" for *every* historical day: RSI(14),
+   5-day and 10-day momentum, distance from the 20-day moving average,
+   20-day volatility, and volume vs. its 20-day average
+   (`src/analysis/forecast.py:_feature_vector`).
+3. Z-score every feature across the whole history, then find the `--k`
+   (default 40) historical days whose feature vector is closest (Euclidean
+   distance) to today's -- these are the "analogs."
+4. Look at what actually happened over the 1-5 trading days *following*
+   each analog day:
+   - **Probability of a short-term gain within the week** = the share of
+     analogs where price traded above that day's close at *some* point over
+     the next 5 trading days (i.e., there was a window to sell for a
+     profit, not necessarily that day 5's close itself was higher).
+   - **Best estimated day to sell** = whichever of the 5 forward days had
+     the highest *average* return across the analogs, reported alongside
+     what fraction of analogs were actually positive on that specific day
+     (a high average pulled up by a few large outliers gets flagged as a
+     note rather than presented as precise).
+
+A ticker needs at least ~55 trading days of history with a full analog pool
+(`WARMUP_DAYS + HORIZON_DAYS + MIN_TRAINING_ROWS` in `forecast.py`) or the
+tool reports it can't run rather than guessing off too little data. If
+fewer than `--k` analogs are available, it uses whatever it found and adds
+a note that the estimate is thinner than usual.
+
+**This is a statistical estimate, not a prediction.** It says "days that
+looked like this one historically tended to do X" -- it has no knowledge of
+upcoming news, earnings, or anything else that hasn't already shown up in
+the price/volume pattern. A ticker breaking hard from its own history (a
+true regime change) will look least like its own past, which is exactly
+when this kind of analog estimate is weakest.
+
 ## Tuning
 
 Every weight and threshold lives in `config.py` and can be overridden via
@@ -307,7 +371,11 @@ momentum, volume surge), the composite scoring/filtering/ranking logic,
 dip-candidate detection (including the falling-knife exclusion), and
 cashtag-based ticker discovery -- all against synthetic data, no network
 required. `tests/test_integration_offline.py` runs the full scoring pipeline
-end-to-end against the bundled sample dataset.
+end-to-end against the bundled sample dataset. `tests/test_forecast.py`
+covers `analyze.py`'s indicator math and the historical-analog forecast
+(including a directional sanity check that an uptrending setup scores more
+bullish than a downtrending one against the same history), also against
+synthetic data.
 
 ## Known limitations
 
@@ -332,3 +400,10 @@ end-to-end against the bundled sample dataset.
   terminal bell + on-screen banner, not a push notification -- it only
   "reaches" you if that terminal is open and visible/audible. There's no
   phone/email delivery built in.
+- `analyze.py`'s probability/best-day-to-sell estimates are a historical
+  base rate, not a forecast of the future -- they assume the ticker keeps
+  behaving statistically like its own past. They have no awareness of
+  upcoming earnings, news, macro events, or anything else not already
+  reflected in the price/volume history, and a stock in a genuine regime
+  change (not just noisy relative to its past) is exactly the case this
+  method handles worst.
