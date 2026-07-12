@@ -72,9 +72,10 @@ import config
 from src.analysis.day_movers import rank_day_movers, scan_for_day_movers
 from src.analysis.dip_scanner import rank_dip_candidates, scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
-from src.data_sources import market_data, news, reddit, stocktwits
-from src.sample_data import generate_offline_dataset
+from src.data_sources import influencers, market_data, news, reddit, stocktwits
+from src.sample_data import generate_offline_dataset, generate_offline_influencer_feed
 from src.ticker_discovery import discover_universe
+from src.web_export import build_dashboard_payload, write_dashboard_json
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("main")
@@ -264,7 +265,29 @@ def run_scan(args, watchlist):
     if args.output:
         save_output(all_ranked, args.output)
 
+    if args.web_out:
+        write_web_dashboard(args, dip_candidates, day_movers)
+
     return {c.ticker for c in dip_candidates}
+
+
+def write_web_dashboard(args, dip_candidates, day_movers):
+    """Write the static dashboard's data.json for this scan cycle. The
+    'powerful businessmen' news feed is fetched here (or taken from the
+    offline sample) so it refreshes on the same cadence as the price scan."""
+    if args.offline:
+        feed = generate_offline_influencer_feed()
+    else:
+        print("Fetching market-mover news feed...", file=sys.stderr)
+        feed = influencers.fetch_influencer_feed()
+    payload = build_dashboard_payload(
+        dip_candidates, day_movers, feed,
+        mode="offline" if args.offline else "live",
+    )
+    write_dashboard_json(payload, args.web_out)
+    print(f"Updated web dashboard data at {args.web_out} "
+          f"({len(payload['rebound_candidates'])} rebound, "
+          f"{len(payload['day_movers'])} movers, {len(feed)} news items)")
 
 
 def run_watch_loop(args, watchlist):
@@ -326,6 +349,12 @@ def main():
     )
     parser.add_argument("--top", type=int, default=config.DEFAULT_TOP_N, help="Number of results to show in --show-momentum")
     parser.add_argument("--output", default="", help="Save full results to a .json or .csv file (overwritten on each refresh)")
+    parser.add_argument(
+        "--web-out", dest="web_out", default="",
+        help="Also write the static web dashboard's data.json here on every "
+             "scan (e.g. web/data.json). Point a static server at the web/ "
+             "directory to view it; the live loop keeps it fresh.",
+    )
     parser.add_argument(
         "--offline", action="store_true",
         help="Use bundled synthetic sample data instead of live APIs (demo/test mode)",

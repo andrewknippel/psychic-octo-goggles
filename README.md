@@ -290,6 +290,54 @@ python main.py --watchlist AAPL,TSLA --show-momentum --output output/results.jso
 python main.py --offline --once -v
 ```
 
+## Web dashboard
+
+A static browser dashboard (in `web/`) shows the same three things live:
+**rebound candidates** (low-RSI dips), **same-day movers**, and a
+**market-mover news feed** -- recent coverage of what powerful business
+figures (CEOs, the Fed chair, high-profile investors) said or did, since
+those remarks routinely move markets.
+
+It's a plain static page with no backend. The scanner writes a single
+`web/data.json`, and the page fetches (and re-fetches, every 60s) that file.
+"Live" therefore means *as fresh as the last scan* -- so run the scanner in
+its normal live loop pointed at that file, and it rewrites the JSON on every
+refresh:
+
+```bash
+# Terminal 1 -- keep web/data.json fresh (rescans + rewrites every 10 min)
+python main.py --web-out web/data.json
+
+# ...or a single build without the loop:
+python main.py --once --web-out web/data.json
+
+# ...or a fully offline demo build (no network, synthetic data):
+python main.py --offline --once --web-out web/data.json
+
+# Terminal 2 -- serve the static page (any static server works)
+python -m http.server 8000 --directory web
+# then open http://localhost:8000
+```
+
+The `web/` directory is fully static, so it can also be hosted on anything
+that serves files (GitHub Pages, S3, Netlify, etc.) as long as `data.json`
+is regenerated and uploaded on whatever cadence you want -- e.g. a cron job
+running the `--once --web-out` command.
+
+The market-mover roster is configurable via the `INFLUENCER_FIGURES` env var
+(`"Name|Role,Name|Role,..."`); see `config.py`. That feed is news coverage
+of these figures pulled from a keyless RSS search, **not** a scrape of their
+raw social accounts -- quoting an outlet that verified a remark is more
+honest than republishing an unverified post, and the platforms those posts
+live on (X especially) need authenticated API access this keyless tool
+doesn't assume.
+
+> Note: the live scan and the news feed reach out to third-party endpoints
+> (Yahoo Finance, Reddit, StockTwits, and the news RSS search). In a sandbox
+> or CI environment whose egress policy blocks those hosts, the live fetch
+> returns nothing -- use `--offline` there, which builds the dashboard from
+> the bundled synthetic dataset instead.
+
 Live mode is polling, not a push feed -- it just reruns the same scan on a
 timer and reprints the table, so you don't have to keep retyping the
 command by hand. `--interval` has a 5-minute floor

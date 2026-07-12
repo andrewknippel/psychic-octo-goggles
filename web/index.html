@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dip &amp; Rebound Radar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">📉</span>
+      <div>
+        <h1>Dip &amp; Rebound Radar</h1>
+        <p class="tagline">Oversold, low-RSI stocks with rebound potential &middot; market-mover news</p>
+      </div>
+    </div>
+    <div class="status">
+      <span id="mode-badge" class="badge">—</span>
+      <span id="updated" class="updated">Loading…</span>
+      <span id="refresh-dot" class="dot" title="Auto-refreshing"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="rebound-panel">
+      <div class="panel-head">
+        <h2>Rebound candidates</h2>
+        <p class="panel-sub">Just dipped, low RSI (oversold), sentiment not panicking. Sorted most-oversold first. Not a prediction &mdash; a dip can keep falling.</p>
+      </div>
+      <div id="rebound-list" class="cards"></div>
+    </section>
+
+    <section class="panel" id="movers-panel">
+      <div class="panel-head">
+        <h2>Same-day movers</h2>
+        <p class="panel-sub">Big price move today on unusually high volume. Flags unusual activity, not which way the session ends.</p>
+      </div>
+      <div id="movers-list" class="cards"></div>
+    </section>
+
+    <section class="panel" id="news-panel">
+      <div class="panel-head">
+        <h2>Market-mover news</h2>
+        <p class="panel-sub">Recent coverage of what powerful business figures said or did &mdash; the kind of remarks that move markets.</p>
+      </div>
+      <div id="news-list" class="feed"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p id="disclaimer" class="disclaimer"></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-07-12T15:39:46.455557+00:00",
+  "mode": "offline",
+  "rebound_candidates": [
+    {
+      "ticker": "DIPPY",
+      "last_price": 36.02,
+      "change_3d_pct": -7.12,
+      "change_5d_pct": -10.55,
+      "rsi": 3.0,
+      "sentiment_score": 80.0,
+      "earnings_date": "2026-07-27",
+      "reasons": [
+        "down -10.6% over 5 days",
+        "RSI oversold at 3",
+        "decline decelerating over the last 3 days",
+        "sentiment not panicking (80/100)",
+        "earnings in 15d (2026-07-27) -- added event risk inside the rebound window"
+      ],
+      "summary": "DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100); earnings in 15d (2026-07-27) -- added event risk inside the rebound window"
+    }
+  ],
+  "day_movers": [
+    {
+      "ticker": "TOPPY",
+      "last_price": 14.2,
+      "change_1d_pct": 13.78,
+      "volume_surge": 3.4,
+      "rsi": 99.5,
+      "reasons": [
+        "volume 3.4x its 20-day average",
+        "RSI 100"
+      ],
+      "summary": "TOPPY +13.8% today -- volume 3.4x its 20-day average; RSI 100"
+    },
+    {
+      "ticker": "MOMO",
+      "last_price": 24.95,
+      "change_1d_pct": 3.83,
+      "volume_surge": 2.48,
+      "rsi": 98.3,
+      "reasons": [
+        "volume 2.5x its 20-day average",
+        "RSI 98"
+      ],
+      "summary": "MOMO +3.8% today -- volume 2.5x its 20-day average; RSI 98"
+    }
+  ],
+  "influencer_feed": [
+    {
+      "name": "Elon Musk",
+      "role": "Tesla & xAI CEO",
+      "headline": "Musk says Tesla will unveil next-gen AI compute at upcoming event",
+      "source": "Reuters",
+      "url": "https://example.com/news",
+      "published_at": "2026-07-12T14:39:46.451293+00:00",
+      "snippet": "Musk says Tesla will unveil next-gen AI compute at upcoming event. (synthetic offline sample)"
+    },
+    {
+      "name": "Jerome Powell",
+      "role": "Federal Reserve Chair",
+      "headline": "Powell signals rates likely on hold as inflation data cools",
+      "source": "Bloomberg",
+      "url": "https://example.com/news",
+      "published_at": "2026-07-12T12:39:46.451293+00:00",
+      "snippet": "Powell signals rates likely on hold as inflation data cools. (synthetic offline sample)"
+    },
+    {
+      "name": "Jensen Huang",
+      "role": "Nvidia CEO",
+      "headline": "Huang: demand for AI chips still outstripping supply into next year",
+      "source": "CNBC",
+      "url": "https://example.com/news",
+      "published_at": "2026-07-12T10:39:46.451293+00:00",
+      "snippet": "Huang: demand for AI chips still outstripping supply into next year. (synthetic offline sample)"
+    },
+    {
+      "name": "Warren Buffett",
+      "role": "Berkshire Hathaway CEO",
+      "headline": "Berkshire trims stake, raising Buffett's record cash pile further",
+      "source": "WSJ",
+      "url": "https://example.com/news",
+      "published_at": "2026-07-12T07:39:46.451293+00:00",
+      "snippet": "Berkshire trims stake, raising Buffett's record cash pile further. (synthetic offline sample)"
+    },
+    {
+      "name": "Jamie Dimon",
+      "role": "JPMorgan Chase CEO",
+      "headline": "Dimon warns markets are underpricing geopolitical and rate risk",
+      "source": "Financial Times",
+      "url": "https://example.com/news",
+      "published_at": "2026-07-12T04:39:46.451293+00:00",
+      "snippet": "Dimon warns markets are underpricing geopolitical and rate risk. (synthetic offline sample)"
+    }
+  ],
+  "disclaimer": "Research/screening tool, not investment advice. Rebound candidates are oversold-bounce setups, not predictions -- a sharp drop can keep falling (a \"falling knife\") instead of bouncing, and nothing here guarantees a rebound within any timeframe. Same-day movers flag unusual price+volume activity, not which way the rest of the session goes. The figures feed is news coverage of what market-moving people said or did, not a guarantee of market impact. Always do your own due diligence before trading."
+}

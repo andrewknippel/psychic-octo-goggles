@@ -101,6 +101,29 @@ RISK_EXTENDED_MOVE_PCT = _float_env("RISK_EXTENDED_MOVE_PCT", 15.0)
 RISK_EARNINGS_WINDOW_DAYS = _int_env("RISK_EARNINGS_WINDOW_DAYS", 7)
 
 # ---------------------------------------------------------------------------
+# Market-moving figures ("powerful businessmen") news feed
+# ---------------------------------------------------------------------------
+# People whose public statements/posts routinely move markets. Recent news
+# about them (their remarks, filings, policy calls) is pulled from Google
+# News' keyless RSS search and surfaced as a separate feed on the web
+# dashboard. Override the roster with a "Name|Role" comma-separated env var,
+# e.g. INFLUENCER_FIGURES="Elon Musk|Tesla & xAI CEO,Jerome Powell|Fed Chair".
+INFLUENCER_FIGURES = os.environ.get(
+    "INFLUENCER_FIGURES",
+    "Elon Musk|Tesla & xAI CEO,"
+    "Jerome Powell|Federal Reserve Chair,"
+    "Warren Buffett|Berkshire Hathaway CEO,"
+    "Jensen Huang|Nvidia CEO,"
+    "Jamie Dimon|JPMorgan Chase CEO,"
+    "Donald Trump|US President,"
+    "Cathie Wood|ARK Invest CEO,"
+    "Bill Ackman|Pershing Square CEO",
+)
+# Max headlines to keep per figure per refresh, and how many days back to look.
+INFLUENCER_MAX_PER_FIGURE = _int_env("INFLUENCER_MAX_PER_FIGURE", 4)
+INFLUENCER_LOOKBACK_DAYS = _int_env("INFLUENCER_LOOKBACK_DAYS", 3)
+
+# ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 DEFAULT_TOP_N = _int_env("DEFAULT_TOP_N", 5)

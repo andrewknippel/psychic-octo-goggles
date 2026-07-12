@@ -22,6 +22,7 @@ import random
 import zlib
 from datetime import datetime, timedelta, timezone
 
+from src.data_sources.influencers import InfluencerPost
 from src.models import Mention, PriceSeries
 
 _NOW = datetime.now(timezone.utc)
@@ -205,3 +206,40 @@ def generate_offline_dataset():
     )
 
     return dataset
+
+
+def generate_offline_influencer_feed():
+    """Synthetic 'powerful businessmen' news feed for offline/demo mode --
+    mirrors the shape of influencers.fetch_influencer_feed(), newest first."""
+    samples = [
+        ("Elon Musk", "Tesla & xAI CEO",
+         "Musk says Tesla will unveil next-gen AI compute at upcoming event",
+         "Reuters", 1),
+        ("Jerome Powell", "Federal Reserve Chair",
+         "Powell signals rates likely on hold as inflation data cools",
+         "Bloomberg", 3),
+        ("Jensen Huang", "Nvidia CEO",
+         "Huang: demand for AI chips still outstripping supply into next year",
+         "CNBC", 5),
+        ("Warren Buffett", "Berkshire Hathaway CEO",
+         "Berkshire trims stake, raising Buffett's record cash pile further",
+         "WSJ", 8),
+        ("Jamie Dimon", "JPMorgan Chase CEO",
+         "Dimon warns markets are underpricing geopolitical and rate risk",
+         "Financial Times", 11),
+    ]
+    feed = []
+    for name, role, headline, source, hours_ago in samples:
+        feed.append(
+            InfluencerPost(
+                name=name,
+                role=role,
+                headline=headline,
+                source=source,
+                url="https://example.com/news",
+                timestamp=_NOW - timedelta(hours=hours_ago),
+                snippet=f"{headline}. (synthetic offline sample)",
+            )
+        )
+    feed.sort(key=lambda p: p.timestamp, reverse=True)
+    return feed
