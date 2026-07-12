@@ -1,0 +1,63 @@
+name: Deploy dashboard to GitHub Pages
+
+# Publishes the static dashboard in web/ to GitHub Pages, regenerating
+# web/data.json with a fresh scan on every run so the hosted site stays live
+# without a server or your PC being on.
+
+on:
+  # A manual "Run workflow" button in the Actions tab (handy from a phone).
+  workflow_dispatch:
+  # Redeploy whenever the site code changes on this branch.
+  push:
+    branches: [claude/stock-dips-news-dashboard-3a2wya]
+  # Auto-refresh the data on a schedule (times are UTC). Every 30 minutes,
+  # weekdays, roughly around US market hours. GitHub may delay scheduled runs
+  # when it's busy, so treat this as "about every half hour", not exact.
+  schedule:
+    - cron: "*/30 13-21 * * 1-5"
+
+# One deploy at a time.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the dashboard branch
+        uses: actions/checkout@v4
+        with:
+          ref: claude/stock-dips-news-dashboard-3a2wya
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build dashboard data (live scan)
+        # If a data source is down or rate-limits the runner, don't fail the
+        # whole deploy -- the site still publishes with the committed sample
+        # (or whatever data was gathered) so the link never goes dark.
+        continue-on-error: true
+        run: python main.py --once --web-out web/data.json
+
+      - name: Upload the web/ folder as the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
