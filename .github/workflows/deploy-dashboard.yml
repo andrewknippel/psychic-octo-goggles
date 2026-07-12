@@ -56,8 +56,11 @@ jobs:
         # runners; --no-trending skips them so the scan is fast and reliable.
         # The dip/RSI screen runs off price data (which works here), and the
         # market-mover news feed comes from a source that isn't blocked.
+        # --max-candidates must cover the whole watchlist: discover_universe
+        # caps the total universe at that number, so without it only the
+        # first 15 (alphabetically) of these tickers would be scanned.
         run: >
-          python main.py --once --no-trending --web-out web/data.json
+          python main.py --once --no-trending --max-candidates 30 --web-out web/data.json
           --watchlist AAPL,MSFT,NVDA,TSLA,AMZN,GOOGL,META,AMD,NFLX,AVGO,JPM,DIS,INTC,PYPL,CRM,BA,PFE,XOM,WMT,COIN,MU,UBER,PLTR,F
 
       - name: Upload the web/ folder as the site
