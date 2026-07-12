@@ -1,0 +1,14 @@
+{
+  "name": "Dip & Rebound Radar",
+  "short_name": "Dip Radar",
+  "description": "Oversold low-RSI stocks with rebound potential, same-day movers, and market-mover news.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0b0f17",
+  "theme_color": "#0b0f17",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
