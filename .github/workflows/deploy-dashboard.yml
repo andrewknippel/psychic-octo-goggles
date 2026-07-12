@@ -10,11 +10,11 @@ on:
   # Redeploy whenever the site code changes on this branch.
   push:
     branches: [claude/stock-dips-news-dashboard-3a2wya]
-  # Auto-refresh the data on a schedule (times are UTC). Every 30 minutes,
+  # Auto-refresh the data on a schedule (times are UTC). Every 15 minutes,
   # weekdays, roughly around US market hours. GitHub may delay scheduled runs
-  # when it's busy, so treat this as "about every half hour", not exact.
+  # when it's busy, so treat this as "about every 15 minutes", not exact.
   schedule:
-    - cron: "*/30 13-21 * * 1-5"
+    - cron: "*/15 13-21 * * 1-5"
 
 # One deploy at a time.
 concurrency:
