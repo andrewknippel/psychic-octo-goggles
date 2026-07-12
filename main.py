@@ -244,6 +244,11 @@ def run_scan(args, watchlist):
         )
         if not universe:
             print("No candidate tickers found (empty watchlist and trending discovery returned nothing).")
+            # Still refresh the web dashboard so a hosted site shows an
+            # honest empty *live* page (plus the market-mover news feed)
+            # instead of silently falling back to the committed demo sample.
+            if args.web_out:
+                write_web_dashboard(args, [], [])
             return set()
         print(f"Scoring {len(universe)} candidate tickers: {', '.join(universe)}\n")
         scores, raw_data = gather_and_score(universe, verbose=args.verbose)

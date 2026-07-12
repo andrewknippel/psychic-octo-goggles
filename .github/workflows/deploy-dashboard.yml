@@ -48,10 +48,17 @@ jobs:
 
       - name: Build dashboard data (live scan)
         # If a data source is down or rate-limits the runner, don't fail the
-        # whole deploy -- the site still publishes with the committed sample
-        # (or whatever data was gathered) so the link never goes dark.
+        # whole deploy -- the site still publishes with whatever data was
+        # gathered so the link never goes dark.
         continue-on-error: true
-        run: python main.py --once --web-out web/data.json
+        # A fixed watchlist of liquid, widely-traded names is passed because
+        # the auto-discovery sources (StockTwits/Reddit trending) block cloud
+        # runners; --no-trending skips them so the scan is fast and reliable.
+        # The dip/RSI screen runs off price data (which works here), and the
+        # market-mover news feed comes from a source that isn't blocked.
+        run: >
+          python main.py --once --no-trending --web-out web/data.json
+          --watchlist AAPL,MSFT,NVDA,TSLA,AMZN,GOOGL,META,AMD,NFLX,AVGO,JPM,DIS,INTC,PYPL,CRM,BA,PFE,XOM,WMT,COIN,MU,UBER,PLTR,F
 
       - name: Upload the web/ folder as the site
         uses: actions/upload-pages-artifact@v3
