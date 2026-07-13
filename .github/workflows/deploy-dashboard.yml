@@ -10,14 +10,15 @@ on:
   # Redeploy whenever the site code changes on this branch.
   push:
     branches: [claude/stock-dips-news-dashboard-3a2wya]
-  # Auto-refresh the data on a schedule (times are UTC). Every 15 minutes,
-  # weekdays, roughly around US market hours. GitHub may delay scheduled runs
-  # when it's busy, so treat this as "about every 15 minutes", not exact.
+  # Auto-refresh the data on a schedule (times are UTC). Every 5 minutes --
+  # GitHub's documented minimum for cron schedules -- on weekdays, roughly
+  # around US market hours. GitHub may delay scheduled runs when it's busy,
+  # so treat this as a floor, not a metronome.
   # Note: GitHub registers/re-registers this cron when the workflow file
   # changes on the default branch -- if scheduled runs ever stop appearing,
   # pushing any edit to this file re-registers it.
   schedule:
-    - cron: "*/15 13-21 * * 1-5"
+    - cron: "*/5 13-21 * * 1-5"
 
 # One deploy at a time.
 concurrency:
