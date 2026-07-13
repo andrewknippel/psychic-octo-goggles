@@ -13,6 +13,9 @@ on:
   # Auto-refresh the data on a schedule (times are UTC). Every 15 minutes,
   # weekdays, roughly around US market hours. GitHub may delay scheduled runs
   # when it's busy, so treat this as "about every 15 minutes", not exact.
+  # Note: GitHub registers/re-registers this cron when the workflow file
+  # changes on the default branch -- if scheduled runs ever stop appearing,
+  # pushing any edit to this file re-registers it.
   schedule:
     - cron: "*/15 13-21 * * 1-5"
 
