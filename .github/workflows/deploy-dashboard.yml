@@ -11,14 +11,20 @@ on:
   push:
     branches: [claude/stock-dips-news-dashboard-3a2wya]
   # Auto-refresh the data on a schedule (times are UTC). Every 5 minutes --
-  # GitHub's documented minimum for cron schedules -- on weekdays, roughly
-  # around US market hours. GitHub may delay scheduled runs when it's busy,
-  # so treat this as a floor, not a metronome.
-  # Note: GitHub registers/re-registers this cron when the workflow file
-  # changes on the default branch -- if scheduled runs ever stop appearing,
-  # pushing any edit to this file re-registers it.
+  # GitHub's documented minimum for cron schedules -- on weekdays, starting
+  # at 13:30 UTC = 8:30 AM Central (9:30 AM Eastern, US market open) and
+  # ending 21:55 UTC (4:55 PM Central). Cron runs on UTC year-round, so
+  # during US winter (standard time) these local times shift 1 hour earlier.
+  # GitHub may delay or skip scheduled runs when it's busy, so treat this
+  # as a floor, not a metronome.
+  # Note: GitHub only honors this schedule when the last edit to this file
+  # was committed by a real user account (schedule runs are attributed to
+  # that user). Edits pushed by automation kill the schedule silently --
+  # if scheduled runs stop appearing, re-save this file from a normal
+  # account (e.g. via the GitHub web editor).
   schedule:
-    - cron: "*/5 13-21 * * 1-5"
+    - cron: "30-59/5 13 * * 1-5"
+    - cron: "*/5 14-21 * * 1-5"
 
 # One deploy at a time.
 concurrency:
@@ -75,4 +81,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
