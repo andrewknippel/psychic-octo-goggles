@@ -6,3 +6,4 @@ output/*.json
 output/*.csv
 .venv/
 venv/
+calendar_app/calendar.db
