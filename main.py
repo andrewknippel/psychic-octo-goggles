@@ -69,6 +69,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 
 import config
+from src.analysis.buy_alerts import select_buy_alerts
 from src.analysis.day_movers import rank_day_movers, scan_for_day_movers
 from src.analysis.dip_scanner import rank_dip_candidates, scan_for_dips
 from src.analysis.scoring import rank_tickers, score_ticker
@@ -167,6 +168,33 @@ def print_table(scores):
         print(f"{i}. {s.ticker} -- {s.rationale}")
 
 
+def print_buy_alert_section(dip_candidates):
+    """The strict, actionable list: dipped >=8% this week AND low RSI, both at
+    once. This is the short list the app pushes a notification about."""
+    alerts = select_buy_alerts(rank_dip_candidates(dip_candidates))
+    print("\n" + "=" * 88)
+    print(
+        f"BUY ALERTS -- down >= {config.BUY_ALERT_DROP_PCT:.0f}% this week AND "
+        f"RSI <= {config.BUY_ALERT_RSI_MAX:.0f} (low), both at once"
+    )
+    print("=" * 88)
+    if not alerts:
+        print("None right now -- nothing meets both the weekly-drop and low-RSI bars.")
+        return
+    for i, a in enumerate(alerts, 1):
+        earn_str = f"  earnings {a.earnings_date}" if a.earnings_date else ""
+        print(
+            f"{i}. {a.ticker:<8} ${a.last_price:<10.2f} 1wk {a.change_5d_pct:+.1f}%  "
+            f"RSI {a.rsi:.0f}{earn_str}"
+        )
+        print(f"   Review a buy in Fidelity: {a.fidelity_url}")
+    print(
+        "\nThese meet the screen's buy criteria, but they are NOT advice or a "
+        "prediction -- an oversold stock can keep falling. You place the order "
+        "yourself in Fidelity after reviewing it; this tool never trades for you."
+    )
+
+
 def print_rebound_section(candidates, heading="REBOUND CANDIDATES"):
     ranked = rank_dip_candidates(candidates)
     print("\n" + "=" * 88)
@@ -262,6 +290,7 @@ def run_scan(args, watchlist):
         print_table(top)
 
     dip_candidates = scan_for_dips(raw_data)
+    print_buy_alert_section(dip_candidates)
     print_rebound_section(dip_candidates)
 
     day_movers = scan_for_day_movers(raw_data)

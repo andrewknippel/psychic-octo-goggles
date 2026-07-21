@@ -1,6 +1,26 @@
 {
-  "generated_at": "2026-07-12T15:39:46.455557+00:00",
+  "generated_at": "2026-07-21T17:05:37.924316+00:00",
   "mode": "offline",
+  "buy_alerts": [
+    {
+      "ticker": "DIPPY",
+      "last_price": 36.02,
+      "change_5d_pct": -10.55,
+      "change_3d_pct": -7.12,
+      "rsi": 3.0,
+      "sentiment_score": 80.0,
+      "earnings_date": "2026-08-05",
+      "reasons": [
+        "down -10.6% over 5 days",
+        "RSI oversold at 3",
+        "decline decelerating over the last 3 days",
+        "sentiment not panicking (80/100)",
+        "earnings in 15d (2026-08-05) -- added event risk inside the rebound window"
+      ],
+      "fidelity_url": "https://digital.fidelity.com/ftgw/digital/trade-equity/index/orderEntry?ORDER_ACTION=B&SYMBOL=DIPPY",
+      "action": "DIPPY: down -10.6% this week with RSI 3 (low). Review a buy on Fidelity."
+    }
+  ],
   "rebound_candidates": [
     {
       "ticker": "DIPPY",
@@ -9,15 +29,15 @@
       "change_5d_pct": -10.55,
       "rsi": 3.0,
       "sentiment_score": 80.0,
-      "earnings_date": "2026-07-27",
+      "earnings_date": "2026-08-05",
       "reasons": [
         "down -10.6% over 5 days",
         "RSI oversold at 3",
         "decline decelerating over the last 3 days",
         "sentiment not panicking (80/100)",
-        "earnings in 15d (2026-07-27) -- added event risk inside the rebound window"
+        "earnings in 15d (2026-08-05) -- added event risk inside the rebound window"
       ],
-      "summary": "DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100); earnings in 15d (2026-07-27) -- added event risk inside the rebound window"
+      "summary": "DIPPY -10.6% (5d) -- down -10.6% over 5 days; RSI oversold at 3; decline decelerating over the last 3 days; sentiment not panicking (80/100); earnings in 15d (2026-08-05) -- added event risk inside the rebound window"
     }
   ],
   "day_movers": [
@@ -53,7 +73,7 @@
       "headline": "Musk says Tesla will unveil next-gen AI compute at upcoming event",
       "source": "Reuters",
       "url": "https://example.com/news",
-      "published_at": "2026-07-12T14:39:46.451293+00:00",
+      "published_at": "2026-07-21T16:05:37.918994+00:00",
       "snippet": "Musk says Tesla will unveil next-gen AI compute at upcoming event. (synthetic offline sample)"
     },
     {
@@ -62,7 +82,7 @@
       "headline": "Powell signals rates likely on hold as inflation data cools",
       "source": "Bloomberg",
       "url": "https://example.com/news",
-      "published_at": "2026-07-12T12:39:46.451293+00:00",
+      "published_at": "2026-07-21T14:05:37.918994+00:00",
       "snippet": "Powell signals rates likely on hold as inflation data cools. (synthetic offline sample)"
     },
     {
@@ -71,7 +91,7 @@
       "headline": "Huang: demand for AI chips still outstripping supply into next year",
       "source": "CNBC",
       "url": "https://example.com/news",
-      "published_at": "2026-07-12T10:39:46.451293+00:00",
+      "published_at": "2026-07-21T12:05:37.918994+00:00",
       "snippet": "Huang: demand for AI chips still outstripping supply into next year. (synthetic offline sample)"
     },
     {
@@ -80,7 +100,7 @@
       "headline": "Berkshire trims stake, raising Buffett's record cash pile further",
       "source": "WSJ",
       "url": "https://example.com/news",
-      "published_at": "2026-07-12T07:39:46.451293+00:00",
+      "published_at": "2026-07-21T09:05:37.918994+00:00",
       "snippet": "Berkshire trims stake, raising Buffett's record cash pile further. (synthetic offline sample)"
     },
     {
@@ -89,9 +109,9 @@
       "headline": "Dimon warns markets are underpricing geopolitical and rate risk",
       "source": "Financial Times",
       "url": "https://example.com/news",
-      "published_at": "2026-07-12T04:39:46.451293+00:00",
+      "published_at": "2026-07-21T06:05:37.918994+00:00",
       "snippet": "Dimon warns markets are underpricing geopolitical and rate risk. (synthetic offline sample)"
     }
   ],
-  "disclaimer": "Research/screening tool, not investment advice. Rebound candidates are oversold-bounce setups, not predictions -- a sharp drop can keep falling (a \"falling knife\") instead of bouncing, and nothing here guarantees a rebound within any timeframe. Same-day movers flag unusual price+volume activity, not which way the rest of the session goes. The figures feed is news coverage of what market-moving people said or did, not a guarantee of market impact. Always do your own due diligence before trading."
+  "disclaimer": "Research/screening tool, not investment advice. Buy alerts and rebound candidates are oversold-dip setups, not predictions -- a sharp drop can keep falling (a \"falling knife\") instead of bouncing, and nothing here guarantees a rebound within any timeframe. The \"Buy in Fidelity\" button only opens a pre-filled order ticket that YOU review and submit; this app never places or authorizes a trade. Same-day movers flag unusual price+volume activity, not which way the rest of the session goes. The figures feed is news coverage of what market-moving people said or did, not a guarantee of market impact. Always do your own due diligence before trading."
 }
