@@ -15,11 +15,12 @@
     <div class="brand">
       <span class="logo" aria-hidden="true">📉</span>
       <div>
-        <h1>Dip &amp; Rebound Radar</h1>
-        <p class="tagline">Oversold, low-RSI stocks with rebound potential &middot; market-mover news</p>
+        <h1>Dip Buy Radar</h1>
+        <p class="tagline">≥8% weekly dips with low RSI &middot; one-tap buy in Fidelity</p>
       </div>
     </div>
     <div class="status">
+      <button id="alerts-toggle" class="alerts-btn" type="button" hidden>🔔 Enable alerts</button>
       <span id="mode-badge" class="badge">—</span>
       <span id="updated" class="updated">Loading…</span>
       <span id="refresh-dot" class="dot" title="Auto-refreshing"></span>
@@ -27,6 +28,14 @@
   </header>
 
   <main>
+    <section class="panel" id="buy-panel">
+      <div class="panel-head">
+        <h2>Buy alerts</h2>
+        <p class="panel-sub">Down at least 8% this past week <strong>and</strong> low RSI, both at once. Tap <em>Buy in Fidelity</em> to open a pre-filled order ticket &mdash; you log in, review, and submit it yourself. This app never places a trade. Not advice; a dip can keep falling.</p>
+      </div>
+      <div id="buy-list" class="cards"></div>
+    </section>
+
     <section class="panel" id="rebound-panel">
       <div class="panel-head">
         <h2>Rebound candidates</h2>

@@ -177,7 +177,49 @@ Each `ScoreBreakdown` carries a `risk_flags` list (also folded into
   `RISK_EARNINGS_WINDOW_DAYS` (7) of today, meaning a binary, momentum-blind
   event could land during the hold.
 
-### 5. Rebound candidates (`src/analysis/dip_scanner.py`) -- the default output
+### 5. Buy alerts (`src/analysis/buy_alerts.py`) -- the actionable short list
+
+**This is the "buy the dip" feature.** A *buy alert* is the strict subset of
+rebound candidates that meets **both** of the things at once:
+
+- **Down at least `BUY_ALERT_DROP_PCT` (8%) over the past week** (5 trading
+  days), and
+- **A low RSI** -- RSI(7) at or below `BUY_ALERT_RSI_MAX` (32).
+
+(The rebound-candidate list in the next section is looser: it fires on the
+dip plus *either* a low RSI *or* a merely decelerating decline. A buy alert
+requires the low RSI specifically, because that's the exact rule this app was
+built around.) Both thresholds default to the rebound-scan values but can be
+tuned independently via env vars -- e.g. set `BUY_ALERT_DROP_PCT=12` for a
+stricter alert list while the rebound radar stays at 8%.
+
+Buy alerts are ranked most-oversold (lowest RSI) first, printed in a **BUY
+ALERTS** section in the terminal, and shown in the top panel of the web app
+(below). Each one carries a **"Buy in Fidelity" deep link**
+(`FIDELITY_TRADE_URL`) that opens Fidelity's equity order-entry ticket
+pre-filled to *Buy* that symbol.
+
+> #### Why it doesn't place the order for you
+>
+> **Fidelity has no official trading API** -- there is no sanctioned way for a
+> third-party app to place orders in a personal Fidelity brokerage account.
+> The only technical ways to do it are unofficial browser automation or
+> reverse-engineered endpoints, which violate Fidelity's terms of service (and
+> pointing that at *unattended, real-money* orders is a great way to lose money
+> to a broken selector or a bad data feed). So this app deliberately keeps a
+> human on the trigger: it finds the dips and hands you a pre-filled ticket;
+> **you** log in, review, and submit. The app can never place a trade, move
+> money, or withdraw funds -- it only ever opens a buy ticket for you to
+> confirm. If you want *genuine* hands-off automation, that requires a broker
+> with an official trading API (e.g. Alpaca, Interactive Brokers, Tradier) --
+> ask and it can be added as a separate, opt-in execution backend.
+
+The web app can also raise a **notification** when a *new* ticker becomes a
+buy alert (see the "Alerts" note under Web dashboard). Like the terminal bell,
+this fires while the app/tab is open; true push-when-closed would need a push
+server.
+
+### 6. Rebound candidates (`src/analysis/dip_scanner.py`) -- the default output
 
 This is what prints by default: an independent scan for the *opposite*
 setup from momentum-chasing -- tickers that dropped sharply but show early
@@ -215,7 +257,7 @@ A stock that's down sharply can keep falling regardless of what RSI or
 sentiment say. Treat every name here as "worth a closer look," not a buy
 signal.
 
-### 6. Same-day momentum movers (`src/analysis/day_movers.py`) -- also default output
+### 7. Same-day momentum movers (`src/analysis/day_movers.py`) -- also default output
 
 The second default section: tickers up sharply *today* on unusually high
 volume. Also reuses already-fetched price data, no extra API calls. A
@@ -292,11 +334,25 @@ python main.py --offline --once -v
 
 ## Web dashboard
 
-A static browser dashboard (in `web/`) shows the same three things live:
-**rebound candidates** (low-RSI dips), **same-day movers**, and a
-**market-mover news feed** -- recent coverage of what powerful business
-figures (CEOs, the Fed chair, high-profile investors) said or did, since
-those remarks routinely move markets.
+A static browser dashboard (in `web/`) is the phone-and-computer app. Its top
+panel is **buy alerts** (down ≥8% this week *and* low RSI, each with a one-tap
+**Buy in Fidelity** button), followed by the broader **rebound candidates**
+(low-RSI dips), **same-day movers**, and a **market-mover news feed** -- recent
+coverage of what powerful business figures (CEOs, the Fed chair, high-profile
+investors) said or did, since those remarks routinely move markets.
+
+**Install it like an app.** It ships a web manifest and a service worker
+(`web/sw.js`), so on a phone ("Add to Home Screen") or desktop Chrome/Edge
+("Install") it runs full-screen with its own icon and works offline (the app
+shell is cached; quotes in `data.json` are always fetched fresh).
+
+**Alerts.** Tap **🔔 Enable alerts** in the header to grant notification
+permission. When a *new* ticker becomes a buy alert on a refresh, the app fires
+a notification whose click opens that ticker's Fidelity buy ticket. This works
+while the app/tab is open (foreground); notifying you when it's fully closed
+would need a push server with VAPID keys, which this static build intentionally
+doesn't include. Seen tickers are remembered in `localStorage` so you aren't
+re-alerted for the same name.
 
 It's a plain static page with no backend. The scanner writes a single
 `web/data.json`, and the page fetches (and re-fetches, every 60s) that file.

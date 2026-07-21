@@ -158,6 +158,36 @@ DIP_MIN_SENTIMENT = _float_env("DIP_MIN_SENTIMENT", 40.0)
 DIP_EARNINGS_WINDOW_DAYS = _int_env("DIP_EARNINGS_WINDOW_DAYS", 28)
 
 # ---------------------------------------------------------------------------
+# Buy alerts -- the strict, actionable subset the phone/computer app surfaces
+# with a one-tap "Buy in Fidelity" button.
+#
+# A "rebound candidate" (above) fires on a big dip plus EITHER an oversold RSI
+# OR a merely decelerating decline. A *buy alert* is deliberately stricter: it
+# requires BOTH conditions the user asked for at once -- a drop of at least
+# BUY_ALERT_DROP_PCT over the past week AND an RSI at/below BUY_ALERT_RSI_MAX
+# ("low RSI"). This is the short list the app pushes a notification about; it
+# is still a screen, not advice, and you place the actual order yourself.
+# ---------------------------------------------------------------------------
+# Minimum one-week (5 trading day) decline, as a positive number: 8 => -8% or
+# worse. Defaults to the rebound-scan threshold so the two stay consistent.
+BUY_ALERT_DROP_PCT = _float_env("BUY_ALERT_DROP_PCT", DIP_DROP_PCT)
+# RSI at/below this counts as "low RSI" for a buy alert. Defaults to the
+# rebound scan's oversold line.
+BUY_ALERT_RSI_MAX = _float_env("BUY_ALERT_RSI_MAX", DIP_RSI_OVERSOLD)
+
+# Deep link used by the app's "Buy in Fidelity" button. It opens Fidelity's
+# equity order-entry ticket with the symbol and Buy action pre-filled -- you
+# still have to be logged in and you review and submit the order yourself
+# (nothing here places or authorizes a trade). "{ticker}" is substituted with
+# the symbol. If Fidelity ever changes this path, the link still lands you on
+# their trade page; override it here or via the FIDELITY_TRADE_URL env var.
+FIDELITY_TRADE_URL = os.environ.get(
+    "FIDELITY_TRADE_URL",
+    "https://digital.fidelity.com/ftgw/digital/trade-equity/index/orderEntry"
+    "?ORDER_ACTION=B&SYMBOL={ticker}",
+)
+
+# ---------------------------------------------------------------------------
 # Same-day momentum movers -- NOT a same-day round-trip guarantee. This is
 # the closest honest signal daily-bar data can give for "unusually active
 # today": today's price move plus today's volume vs. its own average. It

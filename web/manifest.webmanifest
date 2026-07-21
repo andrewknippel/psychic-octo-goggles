@@ -1,7 +1,7 @@
 {
-  "name": "Dip & Rebound Radar",
-  "short_name": "Dip Radar",
-  "description": "Oversold low-RSI stocks with rebound potential, same-day movers, and market-mover news.",
+  "name": "Dip Buy Radar",
+  "short_name": "Dip Buy",
+  "description": "Stocks down at least 8% this week with a low RSI, with a one-tap pre-filled Buy ticket for Fidelity that you review and submit.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",

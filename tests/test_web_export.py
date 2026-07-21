@@ -34,11 +34,25 @@ def _payload():
 def test_payload_has_all_top_level_sections():
     payload = _payload()
     assert set(payload) == {
-        "generated_at", "mode", "rebound_candidates",
+        "generated_at", "mode", "buy_alerts", "rebound_candidates",
         "day_movers", "influencer_feed", "disclaimer",
     }
     assert payload["mode"] == "offline"
     assert payload["generated_at"].startswith("2026-07-11T12:00:00")
+
+
+def test_buy_alerts_are_the_strict_subset_with_a_fidelity_link():
+    payload = _payload()
+    # DIPPY dipped hard AND is deeply oversold, so it's an actionable buy alert.
+    alerts = {a["ticker"]: a for a in payload["buy_alerts"]}
+    assert "DIPPY" in alerts
+    assert "ORDER_ACTION=B" in alerts["DIPPY"]["fidelity_url"]
+    assert "DIPPY" in alerts["DIPPY"]["fidelity_url"]
+    # Every buy alert must also appear as a rebound candidate (it's a subset).
+    rebound = {c["ticker"] for c in payload["rebound_candidates"]}
+    assert set(alerts).issubset(rebound)
+    # Pure-JSON serializable (no dataclasses/datetimes leaking through).
+    json.dumps(payload)
 
 
 def test_rebound_candidates_include_dippy_and_are_serializable():
